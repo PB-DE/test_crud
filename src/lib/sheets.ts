@@ -1,6 +1,6 @@
 import { google, sheets_v4 } from 'googleapis';
 import { getEnvConfig } from './env';
-import { RecordItem, CreateRecordInput, UpdateRecordInput } from './types';
+import { RecordItem, CreateRecordInput, UpdateRecordInput, isValidStatus } from './types';
 
 export const HEADER_ROW = [
   'ID',
@@ -68,15 +68,16 @@ function generateId(): string {
 }
 
 function rowToRecord(row: string[]): RecordItem {
+  const statusCandidate = row?.[4];
   return {
-    id: row[0] ?? '',
-    name: row[1] ?? '',
-    email: row[2] ?? '',
-    role: row[3] ?? '',
-    status: (row[4] as RecordItem['status']) || 'Pending',
-    notes: row[5] ?? '',
-    createdAt: row[6] ?? '',
-    updatedAt: row[7] ?? '',
+    id: row?.[0] ?? '',
+    name: row?.[1] ?? '',
+    email: row?.[2] ?? '',
+    role: row?.[3] ?? '',
+    status: isValidStatus(statusCandidate) ? statusCandidate : 'Pending',
+    notes: row?.[5] ?? '',
+    createdAt: row?.[6] ?? '',
+    updatedAt: row?.[7] ?? '',
   };
 }
 
@@ -212,7 +213,7 @@ export const sheetsService = {
     const values = await ensureHeaderRow(sheets, spreadsheetId);
 
     // Find row index (0 is header)
-    const rowIndex = values.findIndex((row, idx) => idx > 0 && row[0] === id);
+    const rowIndex = values.findIndex((row, idx) => idx > 0 && row?.[0] === id);
     if (rowIndex === -1) return null;
 
     const currentRow = values[rowIndex];
@@ -250,7 +251,7 @@ export const sheetsService = {
     const { sheets, spreadsheetId } = client;
     const values = await ensureHeaderRow(sheets, spreadsheetId);
 
-    const rowIndex = values.findIndex((row, idx) => idx > 0 && row[0] === id);
+    const rowIndex = values.findIndex((row, idx) => idx > 0 && row?.[0] === id);
     if (rowIndex === -1) return false;
 
     // Get the first sheet's ID for deleteDimension

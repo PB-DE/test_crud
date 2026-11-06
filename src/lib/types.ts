@@ -1,4 +1,9 @@
-export type RecordStatus = 'Active' | 'Pending' | 'Inactive';
+export const RECORD_STATUSES = ['Active', 'Pending', 'Inactive'] as const;
+export type RecordStatus = (typeof RECORD_STATUSES)[number];
+
+export function isValidStatus(val: unknown): val is RecordStatus {
+  return typeof val === 'string' && (RECORD_STATUSES as readonly string[]).includes(val);
+}
 
 export interface RecordItem {
   id: string;
