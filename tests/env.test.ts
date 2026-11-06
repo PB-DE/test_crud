@@ -55,4 +55,26 @@ describe('getEnvConfig', () => {
     expect(config.isConfigured).toBe(true);
     expect(config.spreadsheetId).toBe('fallback_sheet_456');
   });
+
+  it('strips surrounding quotes and normalizes private key pasted from JSON or Vercel UI', () => {
+    process.env.GOOGLE_SHEET_ID = '"sheet_quotes"';
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "'sa_quotes@test.iam.gserviceaccount.com'";
+    process.env.GOOGLE_PRIVATE_KEY = '"-----BEGIN PRIVATE KEY-----\\nMIIEvgIB\\n-----END PRIVATE KEY-----\\n"';
+
+    const config = getEnvConfig();
+    expect(config.isConfigured).toBe(true);
+    expect(config.spreadsheetId).toBe('sheet_quotes');
+    expect(config.clientEmail).toBe('sa_quotes@test.iam.gserviceaccount.com');
+    expect(config.privateKey).toBe('-----BEGIN PRIVATE KEY-----\nMIIEvgIB\n-----END PRIVATE KEY-----');
+    expect(config.privateKey?.startsWith('"')).toBe(false);
+  });
+
+  it('extracts spreadsheet ID automatically if full Google Sheets URL is pasted', () => {
+    process.env.GOOGLE_SHEET_ID = 'https://docs.google.com/spreadsheets/d/16iKFICKjxdpHAzcSZef1ZL8_eYFfMDljop-TiTotKlQ/edit#gid=0';
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = 'sa@test.iam.gserviceaccount.com';
+    process.env.GOOGLE_PRIVATE_KEY = 'some-key';
+
+    const config = getEnvConfig();
+    expect(config.spreadsheetId).toBe('16iKFICKjxdpHAzcSZef1ZL8_eYFfMDljop-TiTotKlQ');
+  });
 });

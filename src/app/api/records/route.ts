@@ -11,10 +11,14 @@ export async function GET(_request: Request) {
       success: true,
       data: records,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to fetch records:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch records' },
+      {
+        success: false,
+        error: 'Failed to fetch records',
+        details: error?.message,
+      },
       { status: 500 }
     );
   }
@@ -78,10 +82,14 @@ export async function POST(request: Request) {
       { success: true, data: newRecord },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to create record:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create record' },
+      {
+        success: false,
+        error: 'Failed to create record',
+        details: error?.message,
+      },
       { status: 500 }
     );
   }

@@ -129,10 +129,14 @@ export async function PUT(
       success: true,
       data: updated,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to update record:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update record' },
+      {
+        success: false,
+        error: 'Failed to update record',
+        details: error?.message,
+      },
       { status: 500 }
     );
   }
@@ -164,10 +168,14 @@ export async function DELETE(
       success: true,
       message: 'Record deleted successfully',
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to delete record:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to delete record' },
+      {
+        success: false,
+        error: 'Failed to delete record',
+        details: error?.message,
+      },
       { status: 500 }
     );
   }

@@ -95,7 +95,8 @@ export default function DashboardPage() {
         if (res.ok && json.success) {
           setRecords(json.data || []);
         } else {
-          showToast('error', json.error || 'Failed to load records from database');
+          const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'Failed to load records from database');
+          showToast('error', msg);
         }
       } catch (err) {
         console.error('Failed to fetch records:', err);
@@ -146,7 +147,8 @@ export default function DashboardPage() {
         setIsAddModalOpen(false);
         showToast('success', `Created record for ${formData.name}`, 'Record Created');
       } else {
-        showToast('error', json.error || 'Failed to create record', 'Creation Failed');
+        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'Failed to create record');
+        showToast('error', msg, 'Creation Failed');
       }
     } catch (err) {
       console.error('Create error:', err);
@@ -176,7 +178,8 @@ export default function DashboardPage() {
         setEditingRecord(null);
         showToast('success', `Updated record for ${formData.name}`, 'Record Updated');
       } else {
-        showToast('error', json.error || 'Failed to update record', 'Update Failed');
+        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'Failed to update record');
+        showToast('error', msg, 'Update Failed');
       }
     } catch (err) {
       console.error('Update error:', err);
@@ -202,7 +205,8 @@ export default function DashboardPage() {
         showToast('success', `Deleted record for ${deletingRecord.name}`, 'Record Deleted');
         setDeletingRecord(null);
       } else {
-        showToast('error', json.error || 'Failed to delete record', 'Delete Failed');
+        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'Failed to delete record');
+        showToast('error', msg, 'Delete Failed');
       }
     } catch (err) {
       console.error('Delete error:', err);
