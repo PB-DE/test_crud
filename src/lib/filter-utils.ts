@@ -17,7 +17,7 @@ export function filterRecords(
 
   return records.filter((record) => {
     // Status filter
-    if (shouldFilterStatus && record.status !== statusFilter) {
+    if (shouldFilterStatus && (record.status || '') !== statusFilter) {
       return false;
     }
 
@@ -26,9 +26,9 @@ export function filterRecords(
       return true;
     }
 
-    const nameMatch = record.name.toLowerCase().includes(normalizedQuery);
-    const emailMatch = record.email.toLowerCase().includes(normalizedQuery);
-    const roleMatch = record.role.toLowerCase().includes(normalizedQuery);
+    const nameMatch = (record.name || '').toLowerCase().includes(normalizedQuery);
+    const emailMatch = (record.email || '').toLowerCase().includes(normalizedQuery);
+    const roleMatch = (record.role || '').toLowerCase().includes(normalizedQuery);
     const notesMatch = (record.notes || '').toLowerCase().includes(normalizedQuery);
 
     return nameMatch || emailMatch || roleMatch || notesMatch;

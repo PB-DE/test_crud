@@ -84,6 +84,38 @@ describe('filterRecords', () => {
     const result = filterRecords(records, '   ', 'All');
     expect(result.length).toBe(3);
   });
+
+  it('handles records with undefined or null fields defensively without crashing', () => {
+    const sparseRecords = [
+      {
+        id: '99',
+        name: undefined as unknown as string,
+        email: null as unknown as string,
+        role: undefined as unknown as string,
+        status: undefined as unknown as any,
+        notes: undefined as unknown as string,
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      },
+      {
+        id: '100',
+        name: 'Defensive Test',
+        email: 'test@example.com',
+        role: 'Tester',
+        status: 'Active',
+        notes: '',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      },
+    ];
+
+    expect(() => filterRecords(sparseRecords, 'defensive', 'All')).not.toThrow();
+    const matches = filterRecords(sparseRecords, 'defensive', 'All');
+    expect(matches.length).toBe(1);
+    expect(matches[0].id).toBe('100');
+
+    expect(() => filterRecords(sparseRecords, 'anything', 'Active')).not.toThrow();
+  });
 });
 
 describe('sortRecords', () => {

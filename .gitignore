@@ -18,8 +18,7 @@
 *.pem
 
 # Local env files - strictly protected
-.env*.local
-.env
+.env*
 !.env.example
 
 # Vercel
@@ -28,3 +27,6 @@
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# Tooling and agent artifacts
+.superpowers/
