@@ -60,6 +60,19 @@ export function RecordModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const firstInputRef = useRef<HTMLInputElement>(null);
 
+  // Unique options for datalist memoized to avoid recomputing on every render (must be before early return)
+  const datalistOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          records
+            .filter((r) => r.assetCode && r.assetCode.trim())
+            .map((r) => [r.assetCode.trim().toLowerCase(), r])
+        ).values()
+      ),
+    [records]
+  );
+
   // Derive existing asset matching current assetCode from records or initial record
   const existingAsset =
     findAssetByCode(formData.assetCode, records) ||
@@ -205,19 +218,6 @@ export function RecordModal({
       await onSubmit(formData, targetId);
     }
   };
-
-  // Unique options for datalist memoized to avoid recomputing on every render
-  const datalistOptions = useMemo(
-    () =>
-      Array.from(
-        new Map(
-          records
-            .filter((r) => r.assetCode && r.assetCode.trim())
-            .map((r) => [r.assetCode.trim().toLowerCase(), r])
-        ).values()
-      ),
-    [records]
-  );
 
   return (
     <div
