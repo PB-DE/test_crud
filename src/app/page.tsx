@@ -15,6 +15,7 @@ import {
   SortField,
   SortDirection,
 } from '@/lib/filter-utils';
+import { reconcileAssetRecords, findAssetByCode } from '@/lib/ui-helpers';
 import { SetupBanner } from '@/components/SetupBanner';
 import { RecordTable } from '@/components/RecordTable';
 import { RecordModal, RecordModalFormData } from '@/components/RecordModal';
@@ -139,59 +140,52 @@ export default function DashboardPage() {
     return sortRecords(filtered, sortField, sortDirection);
   }, [records, searchQuery, statusFilter, sortField, sortDirection]);
 
-  // Handle Add Record submit
-  const handleCreateSubmit = async (formData: RecordModalFormData) => {
+  // Handle Save Record (Create or Update with table state reconciliation)
+  const handleSaveRecord = async (
+    formData: RecordModalFormData,
+    targetId?: string
+  ) => {
     setIsSubmitting(true);
+    const idToUpdate = targetId || editingRecord?.id;
+    const isUpdate = Boolean(idToUpdate);
+    const url = isUpdate ? `/api/records/${idToUpdate}` : '/api/records';
+    const method = isUpdate ? 'PUT' : 'POST';
+
     try {
-      const res = await fetch('/api/records', {
-        method: 'POST',
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
       const json = await res.json();
 
       if (res.ok && json.success) {
-        setRecords((prev) => [json.data, ...prev]);
+        setRecords((prev) => reconcileAssetRecords(prev, json.data));
         setIsAddModalOpen(false);
-        showToast('success', `บันทึกครุภัณฑ์ ${formData.name} (${formData.assetCode}) เรียบร้อยแล้ว`, 'บันทึกสำเร็จ');
-      } else {
-        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'ไม่สามารถสร้างรายการครุภัณฑ์ได้');
-        showToast('error', msg, 'บันทึกล้มเหลว');
-      }
-    } catch (err) {
-      console.error('Create error:', err);
-      showToast('error', 'เกิดข้อผิดพลาดที่ไม่คาดคิดในการบันทึกข้อมูล', 'บันทึกล้มเหลว');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Handle Edit Record submit
-  const handleEditSubmit = async (formData: RecordModalFormData) => {
-    if (!editingRecord) return;
-    setIsSubmitting(true);
-
-    try {
-      const res = await fetch(`/api/records/${editingRecord.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      const json = await res.json();
-
-      if (res.ok && json.success) {
-        setRecords((prev) =>
-          prev.map((r) => (r.id === editingRecord.id ? json.data : r))
-        );
         setEditingRecord(null);
-        showToast('success', `อัปเดตข้อมูลครุภัณฑ์ ${formData.name} (${formData.assetCode}) เรียบร้อยแล้ว`, 'อัปเดตสำเร็จ');
+        showToast(
+          'success',
+          isUpdate
+            ? `อัปเดตข้อมูลครุภัณฑ์สำเร็จ: ${formData.name} (${formData.assetCode})`
+            : `บันทึกข้อมูลครุภัณฑ์สำเร็จ: ${formData.name} (${formData.assetCode})`,
+          isUpdate ? 'อัปเดตข้อมูลครุภัณฑ์สำเร็จ' : 'บันทึกข้อมูลครุภัณฑ์สำเร็จ'
+        );
       } else {
-        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'ไม่สามารถอัปเดตรายการครุภัณฑ์ได้');
-        showToast('error', msg, 'อัปเดตล้มเหลว');
+        const msg = json.details
+          ? `${json.error}: ${json.details}`
+          : json.error ||
+            (isUpdate
+              ? 'ไม่สามารถอัปเดตรายการครุภัณฑ์ได้'
+              : 'ไม่สามารถสร้างรายการครุภัณฑ์ได้');
+        showToast('error', msg, isUpdate ? 'อัปเดตล้มเหลว' : 'บันทึกล้มเหลว');
       }
     } catch (err) {
-      console.error('Update error:', err);
-      showToast('error', 'เกิดข้อผิดพลาดที่ไม่คาดคิดในการอัปเดตข้อมูล', 'อัปเดตล้มเหลว');
+      console.error('Save error:', err);
+      showToast(
+        'error',
+        'เกิดข้อผิดพลาดที่ไม่คาดคิดในการบันทึกข้อมูล',
+        isUpdate ? 'อัปเดตล้มเหลว' : 'บันทึกล้มเหลว'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -226,14 +220,37 @@ export default function DashboardPage() {
 
   // Handle open history modal
   const handleOpenHistory = useCallback(
-    async (asset?: AssetRecord) => {
-      setHistoryTargetAsset(asset || null);
+    async (assetOrCode?: AssetRecord | string | null) => {
+      let target: AssetRecord | null = null;
+      let assetCode = '';
+
+      if (typeof assetOrCode === 'string') {
+        assetCode = assetOrCode.trim();
+        target =
+          findAssetByCode(assetCode, records) ||
+          ({
+            id: '',
+            assetCode,
+            name: assetCode,
+            location: '',
+            status: 'พร้อมใช้งาน',
+            responsiblePerson: '',
+            recordedBy: '',
+            createdAt: '',
+            updatedAt: '',
+          } as AssetRecord);
+      } else if (assetOrCode) {
+        target = assetOrCode;
+        assetCode = (assetOrCode.assetCode || '').trim();
+      }
+
+      setHistoryTargetAsset(target);
       setHistoryLogs([]);
       setIsHistoryModalOpen(true);
       setIsLoadingLogs(true);
       try {
-        const url = asset?.assetCode
-          ? `/api/logs?assetCode=${encodeURIComponent(asset.assetCode)}`
+        const url = assetCode
+          ? `/api/logs?assetCode=${encodeURIComponent(assetCode)}`
           : '/api/logs';
         const res = await fetch(url);
         const json = await res.json();
@@ -259,7 +276,7 @@ export default function DashboardPage() {
         setIsLoadingLogs(false);
       }
     },
-    [showToast]
+    [records, showToast]
   );
 
   return (
@@ -332,7 +349,7 @@ export default function DashboardPage() {
               className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs shadow-blue-500/10 transition-colors focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
             >
               <Plus className="w-4 h-4" />
-              <span>+ บันทึกครุภัณฑ์ใหม่</span>
+              <span>+ บันทึกหรือเปลี่ยนแปลงครุภัณฑ์</span>
             </button>
           </div>
         </header>
@@ -367,21 +384,27 @@ export default function DashboardPage() {
         />
       </main>
 
-      {/* Add Record Modal */}
+      {/* Add / Change Record Modal */}
       <RecordModal
         isOpen={isAddModalOpen}
+        records={records}
         isSubmitting={isSubmitting}
-        onSubmit={handleCreateSubmit}
+        onSave={handleSaveRecord}
+        onSubmit={handleSaveRecord}
         onClose={() => setIsAddModalOpen(false)}
+        onViewHistory={(code) => handleOpenHistory(code)}
       />
 
       {/* Edit Record Modal */}
       <RecordModal
         isOpen={Boolean(editingRecord)}
         initialData={editingRecord}
+        records={records}
         isSubmitting={isSubmitting}
-        onSubmit={handleEditSubmit}
+        onSave={handleSaveRecord}
+        onSubmit={handleSaveRecord}
         onClose={() => setEditingRecord(null)}
+        onViewHistory={(code) => handleOpenHistory(code)}
       />
 
       {/* Delete Confirmation Dialog */}

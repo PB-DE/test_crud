@@ -6,7 +6,7 @@ import {
   formatLogDateTime,
   getActionBadgeStyle,
 } from '../src/lib/filter-utils';
-import { findAssetByCode } from '../src/lib/ui-helpers';
+import { findAssetByCode, reconcileAssetRecords } from '../src/lib/ui-helpers';
 import { AssetRecord, AssetLogRecord } from '../src/lib/types';
 
 describe('filterRecords', () => {
@@ -474,4 +474,100 @@ describe('findAssetByCode lookup helper', () => {
     expect(findAssetByCode('', recordsWithEmpty)).toBeNull();
   });
 });
+
+describe('reconcileAssetRecords helper', () => {
+  const current: AssetRecord[] = [
+    {
+      id: '1',
+      assetCode: 'EQ-01',
+      name: 'PC',
+      location: '101',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'A',
+      recordedBy: 'Admin',
+      createdAt: '',
+      updatedAt: '',
+    },
+    {
+      id: '2',
+      assetCode: 'EQ-02',
+      name: 'Printer',
+      location: '102',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'B',
+      recordedBy: 'Admin',
+      createdAt: '',
+      updatedAt: '',
+    },
+  ];
+
+  it('updates existing record in-place without duplicating rows', () => {
+    const updated: AssetRecord = { ...current[0], location: '202' };
+    const result = reconcileAssetRecords(current, updated);
+    expect(result.length).toBe(2);
+    expect(result[0].location).toBe('202');
+    expect(result[1].id).toBe('2');
+  });
+
+  it('updates existing record in the middle without changing order', () => {
+    const updated: AssetRecord = { ...current[1], status: 'ส่งซ่อม' };
+    const result = reconcileAssetRecords(current, updated);
+    expect(result.length).toBe(2);
+    expect(result[0].id).toBe('1');
+    expect(result[1].status).toBe('ส่งซ่อม');
+  });
+
+  it('prepends newly created record if not already in list', () => {
+    const created: AssetRecord = {
+      id: '3',
+      assetCode: 'EQ-03',
+      name: 'Monitor',
+      location: '103',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'C',
+      recordedBy: 'Admin',
+      createdAt: '',
+      updatedAt: '',
+    };
+    const result = reconcileAssetRecords(current, created);
+    expect(result.length).toBe(3);
+    expect(result[0].id).toBe('3');
+    expect(result[1].id).toBe('1');
+    expect(result[2].id).toBe('2');
+  });
+
+  it('does not mutate original array', () => {
+    const copy = [...current];
+    const created: AssetRecord = {
+      id: '3',
+      assetCode: 'EQ-03',
+      name: 'Monitor',
+      location: '103',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'C',
+      recordedBy: 'Admin',
+      createdAt: '',
+      updatedAt: '',
+    };
+    reconcileAssetRecords(current, created);
+    expect(current).toEqual(copy);
+  });
+
+  it('handles empty or undefined previous records array defensively', () => {
+    const item: AssetRecord = {
+      id: '1',
+      assetCode: 'EQ-01',
+      name: 'PC',
+      location: '101',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'A',
+      recordedBy: 'Admin',
+      createdAt: '',
+      updatedAt: '',
+    };
+    expect(reconcileAssetRecords([], item)).toEqual([item]);
+    expect(reconcileAssetRecords(undefined as unknown as AssetRecord[], item)).toEqual([item]);
+  });
+});
+
 
