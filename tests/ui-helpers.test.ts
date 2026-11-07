@@ -485,6 +485,7 @@ describe('reconcileAssetRecords helper', () => {
       status: 'พร้อมใช้งาน',
       responsiblePerson: 'A',
       recordedBy: 'Admin',
+      notes: '',
       createdAt: '',
       updatedAt: '',
     },
@@ -496,6 +497,7 @@ describe('reconcileAssetRecords helper', () => {
       status: 'พร้อมใช้งาน',
       responsiblePerson: 'B',
       recordedBy: 'Admin',
+      notes: '',
       createdAt: '',
       updatedAt: '',
     },
@@ -526,6 +528,7 @@ describe('reconcileAssetRecords helper', () => {
       status: 'พร้อมใช้งาน',
       responsiblePerson: 'C',
       recordedBy: 'Admin',
+      notes: '',
       createdAt: '',
       updatedAt: '',
     };
@@ -546,6 +549,7 @@ describe('reconcileAssetRecords helper', () => {
       status: 'พร้อมใช้งาน',
       responsiblePerson: 'C',
       recordedBy: 'Admin',
+      notes: '',
       createdAt: '',
       updatedAt: '',
     };
@@ -562,6 +566,7 @@ describe('reconcileAssetRecords helper', () => {
       status: 'พร้อมใช้งาน',
       responsiblePerson: 'A',
       recordedBy: 'Admin',
+      notes: '',
       createdAt: '',
       updatedAt: '',
     };

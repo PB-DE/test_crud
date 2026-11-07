@@ -125,9 +125,29 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
           }
         }
 
-        if (isMounted) {
-          setIsStarting(false);
+        if (!isMounted) {
+          try {
+            if (
+              typeof scanner.getState === 'function' &&
+              scanner.getState() === Html5QrcodeScannerState.SCANNING
+            ) {
+              await scanner.stop();
+            } else if (typeof scanner.stop === 'function') {
+              await scanner.stop();
+            }
+          } catch (stopErr) {
+            console.warn('Error stopping scanner after unmounted start:', stopErr);
+          } finally {
+            try {
+              scanner.clear();
+            } catch {
+              // Ignore clear error on unmounted DOM
+            }
+          }
+          return;
         }
+
+        setIsStarting(false);
       } catch (err) {
         console.error('Failed to initialize QR scanner:', err);
         if (isMounted) {
