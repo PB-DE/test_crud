@@ -1,23 +1,34 @@
-import { RecordItem } from './types';
+import { AssetRecord } from './types';
 
-export type SortField = 'id' | 'name' | 'email' | 'role' | 'status' | 'notes' | 'createdAt' | 'updatedAt';
+export type SortField =
+  | 'id'
+  | 'assetCode'
+  | 'name'
+  | 'location'
+  | 'status'
+  | 'responsiblePerson'
+  | 'recordedBy'
+  | 'notes'
+  | 'createdAt'
+  | 'updatedAt';
+
 export type SortDirection = 'asc' | 'desc';
 
 /**
- * Filter records by search query (matching name, email, role, or notes case-insensitively)
- * and optional status filter tag ('All' or specific status).
+ * Filter records by search query (matching assetCode, name, location, responsiblePerson, recordedBy, or notes case-insensitively)
+ * and optional status filter tag ('All', 'ทั้งหมด', or specific status).
  */
 export function filterRecords(
-  records: RecordItem[],
+  records: AssetRecord[],
   query: string,
   statusFilter: string
-): RecordItem[] {
+): AssetRecord[] {
   const normalizedQuery = query.trim().toLowerCase();
-  const shouldFilterStatus = Boolean(statusFilter && statusFilter !== 'All');
+  const isAllStatus = !statusFilter || statusFilter === 'All' || statusFilter === 'ทั้งหมด';
 
   return records.filter((record) => {
     // Status filter
-    if (shouldFilterStatus && (record.status || '') !== statusFilter) {
+    if (!isAllStatus && (record.status || '') !== statusFilter) {
       return false;
     }
 
@@ -26,12 +37,21 @@ export function filterRecords(
       return true;
     }
 
+    const assetCodeMatch = (record.assetCode || '').toLowerCase().includes(normalizedQuery);
     const nameMatch = (record.name || '').toLowerCase().includes(normalizedQuery);
-    const emailMatch = (record.email || '').toLowerCase().includes(normalizedQuery);
-    const roleMatch = (record.role || '').toLowerCase().includes(normalizedQuery);
+    const locationMatch = (record.location || '').toLowerCase().includes(normalizedQuery);
+    const responsibleMatch = (record.responsiblePerson || '').toLowerCase().includes(normalizedQuery);
+    const recordedByMatch = (record.recordedBy || '').toLowerCase().includes(normalizedQuery);
     const notesMatch = (record.notes || '').toLowerCase().includes(normalizedQuery);
 
-    return nameMatch || emailMatch || roleMatch || notesMatch;
+    return (
+      assetCodeMatch ||
+      nameMatch ||
+      locationMatch ||
+      responsibleMatch ||
+      recordedByMatch ||
+      notesMatch
+    );
   });
 }
 
@@ -39,10 +59,10 @@ export function filterRecords(
  * Sorts records by specified field and direction without mutating the original array.
  */
 export function sortRecords(
-  records: RecordItem[],
+  records: AssetRecord[],
   field: SortField,
   direction: SortDirection = 'asc'
-): RecordItem[] {
+): AssetRecord[] {
   const sorted = [...records];
   const multiplier = direction === 'desc' ? -1 : 1;
 

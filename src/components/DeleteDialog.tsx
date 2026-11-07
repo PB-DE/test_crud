@@ -2,11 +2,11 @@
 
 import React, { useEffect } from 'react';
 import { AlertTriangle, Trash2, X, Loader2 } from 'lucide-react';
-import { RecordItem } from '@/lib/types';
+import { AssetRecord } from '@/lib/types';
 
 export interface DeleteDialogProps {
   isOpen: boolean;
-  record: RecordItem | null;
+  record: AssetRecord | null;
   isDeleting: boolean;
   onConfirm: () => void;
   onClose: () => void;
@@ -58,7 +58,7 @@ export function DeleteDialog({
           type="button"
           onClick={onClose}
           disabled={isDeleting}
-          aria-label="Close dialog"
+          aria-label="ปิดหน้าต่างยืนยัน"
           className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
         >
           <X className="w-5 h-5" />
@@ -74,12 +74,12 @@ export function DeleteDialog({
               id="delete-dialog-title"
               className="text-lg font-semibold text-slate-900"
             >
-              Delete Record
+              ยืนยันการลบรายการครุภัณฑ์
             </h3>
             <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">
-              Are you sure you want to delete{' '}
+              คุณแน่ใจหรือไม่ว่าต้องการลบรายการ{' '}
               <span className="font-semibold text-slate-900">{record.name}</span>{' '}
-              ({record.email})? This action cannot be undone.
+              (รหัส: <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded font-semibold text-slate-800">{record.assetCode}</code>)? การกระทำนี้ไม่สามารถย้อนกลับได้
             </p>
           </div>
         </div>
@@ -91,7 +91,7 @@ export function DeleteDialog({
             disabled={isDeleting}
             className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
           >
-            Cancel
+            ยกเลิก
           </button>
           <button
             type="button"
@@ -102,12 +102,12 @@ export function DeleteDialog({
             {isDeleting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Deleting...</span>
+                <span>กำลังลบ...</span>
               </>
             ) : (
               <>
                 <Trash2 className="w-4 h-4" />
-                <span>Delete Record</span>
+                <span>ยืนยันการลบ</span>
               </>
             )}
           </button>

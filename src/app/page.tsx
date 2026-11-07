@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  Database,
+  Boxes,
   Plus,
   RefreshCw,
   Sparkles,
 } from 'lucide-react';
-import { RecordItem } from '@/lib/types';
+import { AssetRecord } from '@/lib/types';
 import {
   filterRecords,
   sortRecords,
@@ -22,7 +22,7 @@ import { Toast, ToastProps } from '@/components/Toast';
 
 export default function DashboardPage() {
   // Data state
-  const [records, setRecords] = useState<RecordItem[]>([]);
+  const [records, setRecords] = useState<AssetRecord[]>([]);
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -37,15 +37,15 @@ export default function DashboardPage() {
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
-  const [sortField, setSortField] = useState<SortField>('createdAt');
+  const [statusFilter, setStatusFilter] = useState('ทั้งหมด');
+  const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   // Modal & Dialog state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<RecordItem | null>(null);
+  const [editingRecord, setEditingRecord] = useState<AssetRecord | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deletingRecord, setDeletingRecord] = useState<RecordItem | null>(null);
+  const [deletingRecord, setDeletingRecord] = useState<AssetRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Toast notification state
@@ -95,12 +95,12 @@ export default function DashboardPage() {
         if (res.ok && json.success) {
           setRecords(json.data || []);
         } else {
-          const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'Failed to load records from database');
-          showToast('error', msg);
+          const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'ไม่สามารถโหลดข้อมูลครุภัณฑ์ได้');
+          showToast('error', msg, 'เกิดข้อผิดพลาด');
         }
       } catch (err) {
         console.error('Failed to fetch records:', err);
-        showToast('error', 'Network error while fetching records');
+        showToast('error', 'เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย', 'การเชื่อมต่อขัดข้อง');
       } finally {
         setIsLoadingRecords(false);
         setIsRefreshing(false);
@@ -145,14 +145,14 @@ export default function DashboardPage() {
       if (res.ok && json.success) {
         setRecords((prev) => [json.data, ...prev]);
         setIsAddModalOpen(false);
-        showToast('success', `Created record for ${formData.name}`, 'Record Created');
+        showToast('success', `บันทึกครุภัณฑ์ ${formData.name} (${formData.assetCode}) เรียบร้อยแล้ว`, 'บันทึกสำเร็จ');
       } else {
-        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'Failed to create record');
-        showToast('error', msg, 'Creation Failed');
+        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'ไม่สามารถสร้างรายการครุภัณฑ์ได้');
+        showToast('error', msg, 'บันทึกล้มเหลว');
       }
     } catch (err) {
       console.error('Create error:', err);
-      showToast('error', 'An unexpected error occurred while saving the record');
+      showToast('error', 'เกิดข้อผิดพลาดที่ไม่คาดคิดในการบันทึกข้อมูล', 'บันทึกล้มเหลว');
     } finally {
       setIsSubmitting(false);
     }
@@ -176,14 +176,14 @@ export default function DashboardPage() {
           prev.map((r) => (r.id === editingRecord.id ? json.data : r))
         );
         setEditingRecord(null);
-        showToast('success', `Updated record for ${formData.name}`, 'Record Updated');
+        showToast('success', `อัปเดตข้อมูลครุภัณฑ์ ${formData.name} (${formData.assetCode}) เรียบร้อยแล้ว`, 'อัปเดตสำเร็จ');
       } else {
-        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'Failed to update record');
-        showToast('error', msg, 'Update Failed');
+        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'ไม่สามารถอัปเดตรายการครุภัณฑ์ได้');
+        showToast('error', msg, 'อัปเดตล้มเหลว');
       }
     } catch (err) {
       console.error('Update error:', err);
-      showToast('error', 'An unexpected error occurred while updating the record');
+      showToast('error', 'เกิดข้อผิดพลาดที่ไม่คาดคิดในการอัปเดตข้อมูล', 'อัปเดตล้มเหลว');
     } finally {
       setIsSubmitting(false);
     }
@@ -202,15 +202,15 @@ export default function DashboardPage() {
 
       if (res.ok && json.success) {
         setRecords((prev) => prev.filter((r) => r.id !== deletingRecord.id));
-        showToast('success', `Deleted record for ${deletingRecord.name}`, 'Record Deleted');
+        showToast('success', `ลบรายการครุภัณฑ์ ${deletingRecord.name} (${deletingRecord.assetCode}) เรียบร้อยแล้ว`, 'ลบสำเร็จ');
         setDeletingRecord(null);
       } else {
-        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'Failed to delete record');
-        showToast('error', msg, 'Delete Failed');
+        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'ไม่สามารถลบรายการครุภัณฑ์ได้');
+        showToast('error', msg, 'ลบล้มเหลว');
       }
     } catch (err) {
       console.error('Delete error:', err);
-      showToast('error', 'An unexpected error occurred while deleting the record');
+      showToast('error', 'เกิดข้อผิดพลาดที่ไม่คาดคิดในการลบข้อมูล', 'ลบล้มเหลว');
     } finally {
       setIsDeleting(false);
     }
@@ -237,12 +237,12 @@ export default function DashboardPage() {
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/60">
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
-              <Database className="w-6 h-6" />
+              <Boxes className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-                  Google Sheets CRUD Database
+                  ระบบติดตามตำแหน่งครุภัณฑ์ในองค์กร
                 </h1>
                 <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
                   <Sparkles className="w-3 h-3 text-blue-500" />
@@ -250,7 +250,7 @@ export default function DashboardPage() {
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                Real-time spreadsheet-backed database dashboard with search, filter, and schema auto-creation.
+                Asset Tracking System — บันทึก ติดตาม และจัดการสถานะครุภัณฑ์ เชื่อมต่อกับ Google Sheets แบบเรียลไทม์
               </p>
             </div>
           </div>
@@ -266,7 +266,7 @@ export default function DashboardPage() {
               <RefreshCw
                 className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`}
               />
-              <span className="hidden sm:inline">Refresh</span>
+              <span className="hidden sm:inline">รีเฟรชข้อมูล</span>
             </button>
 
             <button
@@ -275,7 +275,7 @@ export default function DashboardPage() {
               className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs shadow-blue-500/10 transition-colors focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Record</span>
+              <span>+ บันทึกครุภัณฑ์ใหม่</span>
             </button>
           </div>
         </header>
@@ -339,12 +339,12 @@ export default function DashboardPage() {
       <footer className="border-t border-slate-200/80 bg-white py-4 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
           <div>
-            Google Sheets CRUD Web Application &bull; Built with Next.js 15, Tailwind CSS &amp; Googleapis
+            ระบบติดตามตำแหน่งครุภัณฑ์ในองค์กร (Asset Tracking System) &bull; พัฒนาด้วย Next.js 15, Tailwind CSS และ Google Sheets API
           </div>
           <div className="flex items-center gap-4 text-slate-400">
             <span>Production Ready</span>
             <span>&bull;</span>
-            <span>Vercel Deployable</span>
+            <span>Google Sheets Live Database</span>
           </div>
         </div>
       </footer>

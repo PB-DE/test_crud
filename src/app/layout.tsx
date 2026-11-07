@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Google Sheets Database Manager',
-  description: 'Full-stack CRUD web application powered by Google Sheets and Next.js',
+  title: 'ระบบติดตามตำแหน่งครุภัณฑ์ในองค์กร (Asset Tracking System)',
+  description: 'ระบบบันทึกและติดตามตำแหน่งครุภัณฑ์ในองค์กร เชื่อมต่อฐานข้อมูล Google Sheets แบบเรียลไทม์',
 };
 
 export const viewport: Viewport = {
@@ -17,7 +17,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html lang="th" className="h-full antialiased">
       <body className="flex min-h-full flex-col bg-slate-50 text-slate-900 font-sans">
         {children}
       </body>

@@ -1,22 +1,22 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Loader2, UserPlus, PencilLine } from 'lucide-react';
-import { RecordItem, RecordStatus, RECORD_STATUSES } from '@/lib/types';
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { X, Loader2, PackagePlus, PencilLine } from 'lucide-react';
+import { AssetRecord, AssetStatus, ASSET_STATUSES } from '@/lib/types';
 
 export interface RecordModalFormData {
+  assetCode: string;
   name: string;
-  email: string;
-  role: string;
-  status: RecordStatus;
+  location: string;
+  status: AssetStatus;
+  responsiblePerson: string;
+  recordedBy: string;
   notes: string;
 }
 
 export interface RecordModalProps {
   isOpen: boolean;
-  initialData?: RecordItem | null;
+  initialData?: AssetRecord | null;
   isSubmitting: boolean;
   onSubmit: (data: RecordModalFormData) => Promise<void> | void;
   onClose: () => void;
@@ -30,10 +30,12 @@ export function RecordModal({
   onClose,
 }: RecordModalProps) {
   const [formData, setFormData] = useState<RecordModalFormData>({
+    assetCode: '',
     name: '',
-    email: '',
-    role: '',
-    status: 'Active',
+    location: '',
+    status: 'พร้อมใช้งาน',
+    responsiblePerson: '',
+    recordedBy: '',
     notes: '',
   });
 
@@ -46,18 +48,22 @@ export function RecordModal({
     if (isOpen) {
       if (initialData) {
         setFormData({
-          name: initialData.name,
-          email: initialData.email,
-          role: initialData.role,
-          status: initialData.status,
+          assetCode: initialData.assetCode || '',
+          name: initialData.name || '',
+          location: initialData.location || '',
+          status: initialData.status || 'พร้อมใช้งาน',
+          responsiblePerson: initialData.responsiblePerson || '',
+          recordedBy: initialData.recordedBy || '',
           notes: initialData.notes || '',
         });
       } else {
         setFormData({
+          assetCode: '',
           name: '',
-          email: '',
-          role: '',
-          status: 'Active',
+          location: '',
+          status: 'พร้อมใช้งาน',
+          responsiblePerson: '',
+          recordedBy: '',
           notes: '',
         });
       }
@@ -89,18 +95,24 @@ export function RecordModal({
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
+    if (!formData.assetCode.trim()) {
+      newErrors.assetCode = 'กรุณากรอกรหัสครุภัณฑ์';
+    }
+
     if (!formData.name.trim()) {
-      newErrors.name = 'Full name is required';
+      newErrors.name = 'กรุณากรอกชื่อรายการครุภัณฑ์';
     }
 
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email address is required';
-    } else if (!EMAIL_REGEX.test(formData.email.trim())) {
-      newErrors.email = 'Please enter a valid email address';
+    if (!formData.location.trim()) {
+      newErrors.location = 'กรุณากรอกตำแหน่งที่ตั้งล่าสุด';
     }
 
-    if (!formData.role.trim()) {
-      newErrors.role = 'Role or job title is required';
+    if (!formData.responsiblePerson.trim()) {
+      newErrors.responsiblePerson = 'กรุณากรอกชื่อผู้รับผิดชอบ';
+    }
+
+    if (!formData.recordedBy.trim()) {
+      newErrors.recordedBy = 'กรุณากรอกชื่อผู้บันทึก';
     }
 
     setErrors(newErrors);
@@ -127,25 +139,25 @@ export function RecordModal({
       />
 
       {/* Modal Dialog Card */}
-      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 z-10 overflow-hidden transform transition-all animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 z-10 overflow-hidden max-h-[90vh] flex flex-col transform transition-all animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
               {isEditing ? (
                 <PencilLine className="w-5 h-5" />
               ) : (
-                <UserPlus className="w-5 h-5" />
+                <PackagePlus className="w-5 h-5" />
               )}
             </div>
             <div>
               <h3 id="modal-title" className="text-lg font-semibold text-slate-900">
-                {isEditing ? 'Edit Record' : 'Add New Record'}
+                {isEditing ? 'แก้ไขข้อมูลครุภัณฑ์' : 'บันทึกครุภัณฑ์ใหม่'}
               </h3>
               <p className="text-xs text-slate-500">
                 {isEditing
-                  ? 'Update information for this member'
-                  : 'Fill in the details to add a new record to the sheet'}
+                  ? 'อัปเดตข้อมูลรายละเอียดครุภัณฑ์ในระบบ'
+                  : 'กรอกรายละเอียดครุภัณฑ์เพื่อบันทึกลงระบบ Google Sheets'}
               </p>
             </div>
           </div>
@@ -154,28 +166,86 @@ export function RecordModal({
             type="button"
             onClick={onClose}
             disabled={isSubmitting}
-            aria-label="Close dialog"
+            aria-label="ปิดหน้าต่าง"
             className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Name Field */}
+        {/* Form Body (Scrollable if needed) */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+          {/* Row 1: Asset Code & Status */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Asset Code */}
+            <div>
+              <label
+                htmlFor="field-assetCode"
+                className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
+              >
+                รหัสครุภัณฑ์ <span className="text-rose-500">*</span>
+              </label>
+              <input
+                ref={firstInputRef}
+                id="field-assetCode"
+                type="text"
+                placeholder="เช่น EQ-2026-001"
+                value={formData.assetCode}
+                onChange={(e) => {
+                  setFormData({ ...formData, assetCode: e.target.value });
+                  if (errors.assetCode) setErrors({ ...errors, assetCode: '' });
+                }}
+                className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
+                  errors.assetCode
+                    ? 'border-rose-400 focus:ring-rose-500/20'
+                    : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
+                } focus:outline-none focus:ring-2 transition-all font-mono`}
+              />
+              {errors.assetCode && (
+                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.assetCode}</p>
+              )}
+            </div>
+
+            {/* Status */}
+            <div>
+              <label
+                htmlFor="field-status"
+                className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
+              >
+                สถานะ
+              </label>
+              <select
+                id="field-status"
+                value={formData.status}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    status: e.target.value as AssetStatus,
+                  })
+                }
+                className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              >
+                {ASSET_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Asset Name */}
           <div>
             <label
               htmlFor="field-name"
               className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
             >
-              Full Name <span className="text-rose-500">*</span>
+              ชื่อรายการครุภัณฑ์ <span className="text-rose-500">*</span>
             </label>
             <input
-              ref={firstInputRef}
               id="field-name"
               type="text"
-              placeholder="e.g. Alexandra Vance"
+              placeholder="เช่น คอมพิวเตอร์ All-in-One Dell OptiPlex"
               value={formData.name}
               onChange={(e) => {
                 setFormData({ ...formData, name: e.target.value });
@@ -192,87 +262,88 @@ export function RecordModal({
             )}
           </div>
 
-          {/* Email Field */}
+          {/* Location */}
           <div>
             <label
-              htmlFor="field-email"
+              htmlFor="field-location"
               className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
             >
-              Email Address <span className="text-rose-500">*</span>
+              ตำแหน่งที่ตั้งล่าสุด <span className="text-rose-500">*</span>
             </label>
             <input
-              id="field-email"
-              type="email"
-              placeholder="e.g. alexandra@example.com"
-              value={formData.email}
+              id="field-location"
+              type="text"
+              placeholder="เช่น อาคาร 1 ชั้น 3 ห้อง 301"
+              value={formData.location}
               onChange={(e) => {
-                setFormData({ ...formData, email: e.target.value });
-                if (errors.email) setErrors({ ...errors, email: '' });
+                setFormData({ ...formData, location: e.target.value });
+                if (errors.location) setErrors({ ...errors, location: '' });
               }}
               className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
-                errors.email
+                errors.location
                   ? 'border-rose-400 focus:ring-rose-500/20'
                   : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
               } focus:outline-none focus:ring-2 transition-all`}
             />
-            {errors.email && (
-              <p className="mt-1 text-xs text-rose-600 font-medium">{errors.email}</p>
+            {errors.location && (
+              <p className="mt-1 text-xs text-rose-600 font-medium">{errors.location}</p>
             )}
           </div>
 
-          {/* Role and Status Grid */}
+          {/* Responsible Person & Recorded By Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label
-                htmlFor="field-role"
+                htmlFor="field-responsiblePerson"
                 className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
               >
-                Role / Title <span className="text-rose-500">*</span>
+                ผู้รับผิดชอบ <span className="text-rose-500">*</span>
               </label>
               <input
-                id="field-role"
+                id="field-responsiblePerson"
                 type="text"
-                placeholder="e.g. Software Engineer"
-                value={formData.role}
+                placeholder="เช่น สมชาย ใจดี (ฝ่ายไอที)"
+                value={formData.responsiblePerson}
                 onChange={(e) => {
-                  setFormData({ ...formData, role: e.target.value });
-                  if (errors.role) setErrors({ ...errors, role: '' });
+                  setFormData({ ...formData, responsiblePerson: e.target.value });
+                  if (errors.responsiblePerson) setErrors({ ...errors, responsiblePerson: '' });
                 }}
                 className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
-                  errors.role
+                  errors.responsiblePerson
                     ? 'border-rose-400 focus:ring-rose-500/20'
                     : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
                 } focus:outline-none focus:ring-2 transition-all`}
               />
-              {errors.role && (
-                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.role}</p>
+              {errors.responsiblePerson && (
+                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.responsiblePerson}</p>
               )}
             </div>
 
             <div>
               <label
-                htmlFor="field-status"
+                htmlFor="field-recordedBy"
                 className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
               >
-                Status
+                ผู้บันทึก <span className="text-rose-500">*</span>
               </label>
-              <select
-                id="field-status"
-                value={formData.status}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    status: e.target.value as RecordStatus,
-                  })
-                }
-                className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-              >
-                {RECORD_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
+              <input
+                id="field-recordedBy"
+                type="text"
+                placeholder="เช่น เจ้าหน้าที่พัสดุ A"
+                value={formData.recordedBy}
+                onChange={(e) => {
+                  setFormData({ ...formData, recordedBy: e.target.value });
+                  if (errors.recordedBy) setErrors({ ...errors, recordedBy: '' });
+                }}
+                className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
+                  errors.recordedBy
+                    ? 'border-rose-400 focus:ring-rose-500/20'
+                    : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
+                } focus:outline-none focus:ring-2 transition-all`}
+              />
+              {errors.recordedBy && (
+                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.recordedBy}</p>
+              )}
             </div>
           </div>
 
@@ -282,12 +353,12 @@ export function RecordModal({
               htmlFor="field-notes"
               className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
             >
-              Notes <span className="text-slate-400 font-normal lowercase">(optional)</span>
+              หมายเหตุ <span className="text-slate-400 font-normal lowercase">(ไม่บังคับ)</span>
             </label>
             <textarea
               id="field-notes"
               rows={3}
-              placeholder="Add any additional details or background notes..."
+              placeholder="เพิ่มรายละเอียดหรือหมายเหตุเพิ่มเติม เช่น สภาพอุปกรณ์ วันที่ตรวจนับ..."
               value={formData.notes}
               onChange={(e) =>
                 setFormData({ ...formData, notes: e.target.value })
@@ -304,7 +375,7 @@ export function RecordModal({
               disabled={isSubmitting}
               className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
             >
-              Cancel
+              ยกเลิก
             </button>
             <button
               type="submit"
@@ -314,10 +385,10 @@ export function RecordModal({
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{isEditing ? 'Saving...' : 'Creating...'}</span>
+                  <span>{isEditing ? 'กำลังบันทึก...' : 'กำลังสร้าง...'}</span>
                 </>
               ) : (
-                <span>{isEditing ? 'Save Changes' : 'Create Record'}</span>
+                <span>{isEditing ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูล'}</span>
               )}
             </button>
           </div>
