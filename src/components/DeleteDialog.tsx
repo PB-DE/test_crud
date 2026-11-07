@@ -74,12 +74,13 @@ export function DeleteDialog({
               id="delete-dialog-title"
               className="text-lg font-semibold text-slate-900"
             >
-              ยืนยันการลบรายการครุภัณฑ์
+              ยืนยันการจำหน่าย/ตัดบัญชีครุภัณฑ์
             </h3>
             <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">
-              คุณแน่ใจหรือไม่ว่าต้องการลบรายการ{' '}
+              คุณแน่ใจหรือไม่ว่าต้องการจำหน่าย/ตัดบัญชีรายการ{' '}
               <span className="font-semibold text-slate-900">{record.name}</span>{' '}
-              (รหัส: <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded font-semibold text-slate-800">{record.assetCode}</code>)? การกระทำนี้ไม่สามารถย้อนกลับได้
+              (รหัส: <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded font-semibold text-slate-800">{record.assetCode}</code>)?
+              รายการจะถูกบันทึกสถานะเป็น &quot;จำหน่าย/ตัดบัญชี&quot; ลงใน Transaction Ledger โดยยังคงประวัติไว้ครบถ้วน
             </p>
           </div>
         </div>
@@ -102,12 +103,12 @@ export function DeleteDialog({
             {isDeleting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>กำลังลบ...</span>
+                <span>กำลังบันทึก...</span>
               </>
             ) : (
               <>
                 <Trash2 className="w-4 h-4" />
-                <span>ยืนยันการลบ</span>
+                <span>ยืนยันการจำหน่าย/ตัดบัญชี</span>
               </>
             )}
           </button>

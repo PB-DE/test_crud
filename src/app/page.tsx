@@ -191,7 +191,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Handle Delete Record confirmation
+  // Handle Delete / Decommission Record confirmation
   const handleDeleteConfirm = async () => {
     if (!deletingRecord) return;
     setIsDeleting(true);
@@ -203,16 +203,32 @@ export default function DashboardPage() {
       const json = await res.json();
 
       if (res.ok && json.success) {
-        setRecords((prev) => prev.filter((r) => r.id !== deletingRecord.id));
-        showToast('success', `ลบรายการครุภัณฑ์ ${deletingRecord.name} (${deletingRecord.assetCode}) เรียบร้อยแล้ว`, 'ลบสำเร็จ');
+        const now = new Date().toISOString();
+        setRecords((prev) =>
+          prev.map((r) =>
+            r.id === deletingRecord.id
+              ? {
+                  ...r,
+                  status: 'จำหน่าย/ตัดบัญชี',
+                  updatedAt: now,
+                  transactionCount: (r.transactionCount || 1) + 1,
+                }
+              : r
+          )
+        );
+        showToast(
+          'success',
+          `จำหน่าย/ตัดบัญชีครุภัณฑ์ ${deletingRecord.name} (${deletingRecord.assetCode}) เรียบร้อยแล้ว (บันทึกลง Ledger)`,
+          'จำหน่าย/ตัดบัญชีสำเร็จ'
+        );
         setDeletingRecord(null);
       } else {
-        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'ไม่สามารถลบรายการครุภัณฑ์ได้');
-        showToast('error', msg, 'ลบล้มเหลว');
+        const msg = json.details ? `${json.error}: ${json.details}` : (json.error || 'ไม่สามารถจำหน่าย/ตัดบัญชีครุภัณฑ์ได้');
+        showToast('error', msg, 'จำหน่าย/ตัดบัญชีล้มเหลว');
       }
     } catch (err) {
       console.error('Delete error:', err);
-      showToast('error', 'เกิดข้อผิดพลาดที่ไม่คาดคิดในการลบข้อมูล', 'ลบล้มเหลว');
+      showToast('error', 'เกิดข้อผิดพลาดที่ไม่คาดคิดในการจำหน่าย/ตัดบัญชีข้อมูล', 'จำหน่าย/ตัดบัญชีล้มเหลว');
     } finally {
       setIsDeleting(false);
     }

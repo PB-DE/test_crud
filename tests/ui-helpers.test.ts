@@ -573,6 +573,59 @@ describe('reconcileAssetRecords helper', () => {
     expect(reconcileAssetRecords([], item)).toEqual([item]);
     expect(reconcileAssetRecords(undefined as unknown as AssetRecord[], item)).toEqual([item]);
   });
+
+  it('reconciles soft-decommissioned record by preserving its place and updating status to จำหน่าย/ตัดบัญชี', () => {
+    const decommissioned: AssetRecord = {
+      ...current[0],
+      status: 'จำหน่าย/ตัดบัญชี',
+      updatedAt: '2026-02-01T00:00:00Z',
+      transactionCount: 2,
+    };
+    const reconciled = reconcileAssetRecords(current, decommissioned);
+    expect(reconciled.length).toBe(2);
+    expect(reconciled[0].status).toBe('จำหน่าย/ตัดบัญชี');
+    expect(reconciled[0].transactionCount).toBe(2);
+    expect(reconciled[1].status).toBe('พร้อมใช้งาน');
+  });
+});
+
+describe('sortRecords by updatedAt (indicator of latest state)', () => {
+  it('sorts records chronologically descending by updatedAt as the latest state indicator', () => {
+    const list: AssetRecord[] = [
+      {
+        id: '1',
+        assetCode: 'EQ-01',
+        name: 'Item 1',
+        location: 'A',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'A',
+        recordedBy: 'Admin',
+        notes: '',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T10:00:00Z',
+      },
+      {
+        id: '2',
+        assetCode: 'EQ-02',
+        name: 'Item 2',
+        location: 'B',
+        status: 'กำลังใช้งาน',
+        responsiblePerson: 'B',
+        recordedBy: 'Admin',
+        notes: '',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-03T15:00:00Z',
+      },
+    ];
+
+    const sortedDesc = sortRecords(list, 'updatedAt', 'desc');
+    expect(sortedDesc[0].id).toBe('2');
+    expect(sortedDesc[1].id).toBe('1');
+
+    const sortedAsc = sortRecords(list, 'updatedAt', 'asc');
+    expect(sortedAsc[0].id).toBe('1');
+    expect(sortedAsc[1].id).toBe('2');
+  });
 });
 
 
