@@ -36,11 +36,13 @@ The user requires the Google Sheet to serve as an immutable, complete transactio
 - **Projection Engine:**
   - `projectLatestAssets(transactions)` groups all rows by `normalizeAssetCode(assetCode)`.
   - For each unique `assetCode`, picks the row with the newest `timestamp`.
-  - Rows marked as deleted/decommissioned (`status === 'จำหน่าย/ตัดบัญชี'` or `action === 'จำหน่าย/ตัดบัญชี'`) are either marked with that status or filtered based on user preference, with status badge clearly showing `จำหน่าย/ตัดบัญชี`.
+  - Returns all projected records including `จำหน่าย/ตัดบัญชี`, allowing `RecordTable`'s status tabs (`ทั้งหมด`, `พร้อมใช้งาน`, `กำลังใช้งาน`, `ส่งซ่อม`, `จำหน่าย/ตัดบัญชี`) to filter client-side with full visibility of active and retired equipment.
 - **History Timeline from Ledger:**
   - `getLogs({ assetCode })` queries all transaction rows matching that code sorted by `timestamp` descending, providing a complete audit trail without requiring a secondary sheet.
-- **Full Backward & Forward Compatibility:**
-  - Frontend components (`RecordTable`, `RecordModal`, `LogHistoryModal`, `page.tsx`) continue to consume `AssetRecord` and `AssetLogRecord` structures seamlessly.
+- **Asset Uniqueness & Upsert Routing:**
+  - In `createRecord(data)`: If `assetCode` already exists in the ledger, automatically appends transaction with `action: 'แก้ไข/ย้ายตำแหน่ง'` (honoring the organization rule: same `assetCode` = same item). If new, appends with `action: 'บันทึกรายการใหม่'`.
+- **Soft Decommissioning in UI:**
+  - Deleting an asset prompts confirmation in `DeleteDialog`, then appends a transaction with `action: 'จำหน่าย/ตัดบัญชี'`, `status: 'จำหน่าย/ตัดบัญชี'`, `notes: 'จำหน่าย/ตัดบัญชีออกจากระบบ'`. Rows in Google Sheets are never physically deleted.
 
 ### Non-Goals
 - Complex snapshotting or compaction (Google Sheets handles thousands of rows easily for organization assets).
@@ -172,3 +174,4 @@ export function projectLatestAssets(transactions: AssetTransaction[]): AssetReco
 
 - Exact label on the soft delete confirmation dialog ("ยืนยันการจำหน่าย/ตัดบัญชีครุภัณฑ์").
 - Transition handling for existing sheets (self-healing header row on first load).
+
