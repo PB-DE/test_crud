@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sheetsService } from '@/lib/sheets';
-import { isValidStatus } from '@/lib/types';
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { isValidAssetStatus } from '@/lib/types';
 
 export async function GET(_request: Request) {
   try {
@@ -35,7 +33,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, email, role, status, notes } = body || {};
+  const { assetCode, name, location, status, responsiblePerson, recordedBy, notes } =
+    body || {};
+
+  if (!assetCode || typeof assetCode !== 'string' || assetCode.trim().length === 0) {
+    return NextResponse.json(
+      { success: false, error: 'Asset code is required' },
+      { status: 400 }
+    );
+  }
 
   if (!name || typeof name !== 'string' || name.trim().length === 0) {
     return NextResponse.json(
@@ -44,26 +50,38 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!email || typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
+  if (!location || typeof location !== 'string' || location.trim().length === 0) {
     return NextResponse.json(
-      { success: false, error: 'Valid email is required' },
+      { success: false, error: 'Location is required' },
       { status: 400 }
     );
   }
 
-  if (!role || typeof role !== 'string' || role.trim().length === 0) {
+  if (
+    !responsiblePerson ||
+    typeof responsiblePerson !== 'string' ||
+    responsiblePerson.trim().length === 0
+  ) {
     return NextResponse.json(
-      { success: false, error: 'Role is required' },
+      { success: false, error: 'Responsible person is required' },
       { status: 400 }
     );
   }
 
-  const recordStatus = status ? status : 'Pending';
-  if (!isValidStatus(recordStatus)) {
+  if (!recordedBy || typeof recordedBy !== 'string' || recordedBy.trim().length === 0) {
+    return NextResponse.json(
+      { success: false, error: 'Recorded by is required' },
+      { status: 400 }
+    );
+  }
+
+  const recordStatus = status ? status : 'พร้อมใช้งาน';
+  if (!isValidAssetStatus(recordStatus)) {
     return NextResponse.json(
       {
         success: false,
-        error: 'Invalid status. Must be Active, Pending, or Inactive',
+        error:
+          'Invalid status. Must be one of: พร้อมใช้งาน, กำลังใช้งาน, ส่งซ่อม, จำหน่าย/ตัดบัญชี',
       },
       { status: 400 }
     );
@@ -71,10 +89,12 @@ export async function POST(request: Request) {
 
   try {
     const newRecord = await sheetsService.createRecord({
+      assetCode: assetCode.trim(),
       name: name.trim(),
-      email: email.trim(),
-      role: role.trim(),
+      location: location.trim(),
       status: recordStatus,
+      responsiblePerson: responsiblePerson.trim(),
+      recordedBy: recordedBy.trim(),
       notes: typeof notes === 'string' ? notes.trim() : '',
     });
 

@@ -32,6 +32,9 @@ describe('API Route Handlers', () => {
       expect(json.success).toBe(true);
       expect(Array.isArray(json.data)).toBe(true);
       expect(json.data.length).toBeGreaterThan(0);
+      expect(json.data[0]).toHaveProperty('assetCode');
+      expect(json.data[0]).toHaveProperty('responsiblePerson');
+      expect(json.data[0]).toHaveProperty('recordedBy');
     });
 
     it('returns status 500 when fetching records fails', async () => {
@@ -49,33 +52,21 @@ describe('API Route Handlers', () => {
       const json = await res.json();
       expect(json.success).toBe(false);
       expect(json.error).toBe('Failed to fetch records');
+      expect(json.details).toBe('Database error');
     });
   });
 
   describe('POST /api/records', () => {
-    it('rejects POST with missing required fields with status 400', async () => {
-      const req = new Request('http://localhost:3000/api/records', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: '' }),
-      });
-
-      const res = await postRecord(req);
-      expect(res.status).toBe(400);
-
-      const json = await res.json();
-      expect(json.success).toBe(false);
-      expect(json.error).toBeDefined();
-    });
-
-    it('rejects POST with invalid email with status 400', async () => {
+    it('rejects POST with missing name with status 400', async () => {
       const req = new Request('http://localhost:3000/api/records', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: 'Jane Doe',
-          email: 'invalid-email',
-          role: 'Engineer',
+          assetCode: 'EQ-2026-005',
+          name: '',
+          location: 'ห้องประชุม 1',
+          responsiblePerson: 'นายสมชาย',
+          recordedBy: 'นางสมหญิง',
         }),
       });
 
@@ -84,7 +75,91 @@ describe('API Route Handlers', () => {
 
       const json = await res.json();
       expect(json.success).toBe(false);
-      expect(json.error).toMatch(/email/i);
+      expect(json.error).toMatch(/name/i);
+    });
+
+    it('rejects POST with missing assetCode with status 400', async () => {
+      const req = new Request('http://localhost:3000/api/records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: '   ',
+          name: 'เครื่องสแกนบาร์โค้ด',
+          location: 'ห้องพัสดุ',
+          responsiblePerson: 'นายสมชาย',
+          recordedBy: 'นางสมหญิง',
+        }),
+      });
+
+      const res = await postRecord(req);
+      expect(res.status).toBe(400);
+
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toMatch(/asset code/i);
+    });
+
+    it('rejects POST with missing location with status 400', async () => {
+      const req = new Request('http://localhost:3000/api/records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: 'EQ-2026-005',
+          name: 'เครื่องสแกนบาร์โค้ด',
+          location: '',
+          responsiblePerson: 'นายสมชาย',
+          recordedBy: 'นางสมหญิง',
+        }),
+      });
+
+      const res = await postRecord(req);
+      expect(res.status).toBe(400);
+
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toMatch(/location/i);
+    });
+
+    it('rejects POST with missing responsiblePerson with status 400', async () => {
+      const req = new Request('http://localhost:3000/api/records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: 'EQ-2026-005',
+          name: 'เครื่องสแกนบาร์โค้ด',
+          location: 'ห้องพัสดุ',
+          responsiblePerson: '  ',
+          recordedBy: 'นางสมหญิง',
+        }),
+      });
+
+      const res = await postRecord(req);
+      expect(res.status).toBe(400);
+
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toMatch(/responsible person/i);
+    });
+
+    it('rejects POST with missing recordedBy with status 400', async () => {
+      const req = new Request('http://localhost:3000/api/records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: 'EQ-2026-005',
+          name: 'เครื่องสแกนบาร์โค้ด',
+          location: 'ห้องพัสดุ',
+          responsiblePerson: 'นายสมชาย',
+          recordedBy: '',
+        }),
+      });
+
+      const res = await postRecord(req);
+      expect(res.status).toBe(400);
+
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toMatch(/recorded by/i);
     });
 
     it('rejects POST with invalid status with status 400', async () => {
@@ -92,9 +167,11 @@ describe('API Route Handlers', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: 'Jane Doe',
-          email: 'jane@example.com',
-          role: 'Engineer',
+          assetCode: 'EQ-2026-005',
+          name: 'เครื่องสแกนบาร์โค้ด',
+          location: 'ห้องพัสดุ',
+          responsiblePerson: 'นายสมชาย',
+          recordedBy: 'นางสมหญิง',
           status: 'UnknownStatus',
         }),
       });
@@ -127,11 +204,13 @@ describe('API Route Handlers', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: 'Sarah Connor',
-          email: 'sarah@skynet.com',
-          role: 'Security',
-          status: 'Active',
-          notes: 'Leader',
+          assetCode: 'EQ-2026-099',
+          name: 'โปรเจคเตอร์ Epson EB-X51',
+          location: 'ห้องประชุม 1 ชั้น 3',
+          status: 'พร้อมใช้งาน',
+          responsiblePerson: 'นายประสิทธิ์ สุขใจ',
+          recordedBy: 'นางสาววิไลลักษณ์ มั่นคง',
+          notes: 'ติดตั้งพร้อมรีโมตและสาย HDMI',
         }),
       });
 
@@ -141,21 +220,25 @@ describe('API Route Handlers', () => {
       const json = await res.json();
       expect(json.success).toBe(true);
       expect(json.data.id).toBeDefined();
-      expect(json.data.name).toBe('Sarah Connor');
-      expect(json.data.email).toBe('sarah@skynet.com');
-      expect(json.data.role).toBe('Security');
-      expect(json.data.status).toBe('Active');
-      expect(json.data.notes).toBe('Leader');
+      expect(json.data.assetCode).toBe('EQ-2026-099');
+      expect(json.data.name).toBe('โปรเจคเตอร์ Epson EB-X51');
+      expect(json.data.location).toBe('ห้องประชุม 1 ชั้น 3');
+      expect(json.data.status).toBe('พร้อมใช้งาน');
+      expect(json.data.responsiblePerson).toBe('นายประสิทธิ์ สุขใจ');
+      expect(json.data.recordedBy).toBe('นางสาววิไลลักษณ์ มั่นคง');
+      expect(json.data.notes).toBe('ติดตั้งพร้อมรีโมตและสาย HDMI');
     });
 
-    it('defaults status to Pending when omitted in POST with status 201', async () => {
+    it('defaults status to พร้อมใช้งาน when omitted in POST with status 201', async () => {
       const req = new Request('http://localhost:3000/api/records', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: 'Kyle Reese',
-          email: 'kyle@future.org',
-          role: 'Soldier',
+          assetCode: 'EQ-2026-100',
+          name: 'ชุดเครื่องเสียงพกพา',
+          location: 'ห้องโสตฯ ชั้น 1',
+          responsiblePerson: 'นายกิตติศักดิ์ ชำนาญ',
+          recordedBy: 'นายวีระ ศักดิ์ศรี',
         }),
       });
 
@@ -164,7 +247,8 @@ describe('API Route Handlers', () => {
 
       const json = await res.json();
       expect(json.success).toBe(true);
-      expect(json.data.status).toBe('Pending');
+      expect(json.data.status).toBe('พร้อมใช้งาน');
+      expect(json.data.notes).toBe('');
     });
 
     it('returns status 500 when creation fails', async () => {
@@ -176,9 +260,11 @@ describe('API Route Handlers', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: 'Sarah Connor',
-          email: 'sarah@skynet.com',
-          role: 'Security',
+          assetCode: 'EQ-2026-101',
+          name: 'โทรทัศน์ Smart TV 65 นิ้ว',
+          location: 'ห้องประชุมใหญ่',
+          responsiblePerson: 'นายอดิศักดิ์',
+          recordedBy: 'นางกมลวรรณ',
         }),
       });
 
@@ -188,6 +274,7 @@ describe('API Route Handlers', () => {
       const json = await res.json();
       expect(json.success).toBe(false);
       expect(json.error).toBe('Failed to create record');
+      expect(json.details).toBe('Google API Error');
     });
   });
 
@@ -205,7 +292,9 @@ describe('API Route Handlers', () => {
       const json = await res.json();
       expect(json.success).toBe(true);
       expect(json.data.id).toBe('rec-demo-001');
-      expect(json.data.name).toBe('Sarah Connor');
+      expect(json.data.name).toBe('คอมพิวเตอร์ All-in-One Dell OptiPlex 7400');
+      expect(json.data.assetCode).toBe('EQ-2026-001');
+      expect(json.data.status).toBe('พร้อมใช้งาน');
     });
 
     it('returns 404 when record is not found', async () => {
@@ -240,6 +329,7 @@ describe('API Route Handlers', () => {
       const json = await res.json();
       expect(json.success).toBe(false);
       expect(json.error).toBe('Failed to fetch record');
+      expect(json.details).toBe('Network failure');
     });
   });
 
@@ -249,8 +339,10 @@ describe('API Route Handlers', () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          role: 'Chief Security Officer',
-          status: 'Active',
+          location: 'ฝ่ายเทคโนโลยีสารสนเทศ ชั้น 5',
+          status: 'กำลังใช้งาน',
+          responsiblePerson: 'นายสมเกียรติ ยั่งยืน (หัวหน้าฝ่าย)',
+          notes: 'ย้ายจุดติดตั้งไปยังโต๊ะทำงานใหม่',
         }),
       });
 
@@ -261,27 +353,10 @@ describe('API Route Handlers', () => {
 
       const json = await res.json();
       expect(json.success).toBe(true);
-      expect(json.data.role).toBe('Chief Security Officer');
-      expect(json.data.status).toBe('Active');
-    });
-
-    it('rejects PUT with invalid email with status 400', async () => {
-      const req = new Request('http://localhost:3000/api/records/rec-demo-001', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: 'invalid-email',
-        }),
-      });
-
-      const res = await putRecord(req, {
-        params: Promise.resolve({ id: 'rec-demo-001' }),
-      });
-      expect(res.status).toBe(400);
-
-      const json = await res.json();
-      expect(json.success).toBe(false);
-      expect(json.error).toMatch(/email/i);
+      expect(json.data.location).toBe('ฝ่ายเทคโนโลยีสารสนเทศ ชั้น 5');
+      expect(json.data.status).toBe('กำลังใช้งาน');
+      expect(json.data.responsiblePerson).toBe('นายสมเกียรติ ยั่งยืน (หัวหน้าฝ่าย)');
+      expect(json.data.notes).toBe('ย้ายจุดติดตั้งไปยังโต๊ะทำงานใหม่');
     });
 
     it('rejects PUT with invalid status with status 400', async () => {
@@ -322,6 +397,82 @@ describe('API Route Handlers', () => {
       expect(json.error).toMatch(/name/i);
     });
 
+    it('rejects PUT with empty assetCode with status 400', async () => {
+      const req = new Request('http://localhost:3000/api/records/rec-demo-001', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: '   ',
+        }),
+      });
+
+      const res = await putRecord(req, {
+        params: Promise.resolve({ id: 'rec-demo-001' }),
+      });
+      expect(res.status).toBe(400);
+
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toMatch(/asset code/i);
+    });
+
+    it('rejects PUT with empty location with status 400', async () => {
+      const req = new Request('http://localhost:3000/api/records/rec-demo-001', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location: '',
+        }),
+      });
+
+      const res = await putRecord(req, {
+        params: Promise.resolve({ id: 'rec-demo-001' }),
+      });
+      expect(res.status).toBe(400);
+
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toMatch(/location/i);
+    });
+
+    it('rejects PUT with empty responsiblePerson with status 400', async () => {
+      const req = new Request('http://localhost:3000/api/records/rec-demo-001', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          responsiblePerson: '  ',
+        }),
+      });
+
+      const res = await putRecord(req, {
+        params: Promise.resolve({ id: 'rec-demo-001' }),
+      });
+      expect(res.status).toBe(400);
+
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toMatch(/responsible person/i);
+    });
+
+    it('rejects PUT with empty recordedBy with status 400', async () => {
+      const req = new Request('http://localhost:3000/api/records/rec-demo-001', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recordedBy: '  ',
+        }),
+      });
+
+      const res = await putRecord(req, {
+        params: Promise.resolve({ id: 'rec-demo-001' }),
+      });
+      expect(res.status).toBe(400);
+
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toMatch(/recorded by/i);
+    });
+
     it('rejects malformed JSON body on PUT with status 400', async () => {
       const req = new Request('http://localhost:3000/api/records/rec-demo-001', {
         method: 'PUT',
@@ -344,7 +495,7 @@ describe('API Route Handlers', () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: 'Active',
+          status: 'พร้อมใช้งาน',
         }),
       });
 
@@ -367,7 +518,7 @@ describe('API Route Handlers', () => {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          role: 'New Role',
+          location: 'ห้องประชุม',
         }),
       });
 
@@ -379,6 +530,7 @@ describe('API Route Handlers', () => {
       const json = await res.json();
       expect(json.success).toBe(false);
       expect(json.error).toBe('Failed to update record');
+      expect(json.details).toBe('Network error');
     });
   });
 
@@ -434,6 +586,7 @@ describe('API Route Handlers', () => {
       const json = await res.json();
       expect(json.success).toBe(false);
       expect(json.error).toBe('Failed to delete record');
+      expect(json.details).toBe('Delete error');
     });
   });
 

@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sheetsService } from '@/lib/sheets';
-import { isValidStatus, UpdateRecordInput } from '@/lib/types';
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+import { isValidAssetStatus, UpdateAssetInput } from '@/lib/types';
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -34,10 +32,14 @@ export async function GET(
       success: true,
       data: record,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to fetch record:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch record' },
+      {
+        success: false,
+        error: 'Failed to fetch record',
+        details: error?.message,
+      },
       { status: 500 }
     );
   }
@@ -57,8 +59,26 @@ export async function PUT(
     );
   }
 
-  const { name, email, role, status, notes } = body || {};
-  const updateData: UpdateRecordInput = {};
+  const {
+    assetCode,
+    name,
+    location,
+    status,
+    responsiblePerson,
+    recordedBy,
+    notes,
+  } = body || {};
+  const updateData: UpdateAssetInput = {};
+
+  if (assetCode !== undefined) {
+    if (typeof assetCode !== 'string' || assetCode.trim().length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Asset code cannot be empty' },
+        { status: 400 }
+      );
+    }
+    updateData.assetCode = assetCode.trim();
+  }
 
   if (name !== undefined) {
     if (typeof name !== 'string' || name.trim().length === 0) {
@@ -70,37 +90,51 @@ export async function PUT(
     updateData.name = name.trim();
   }
 
-  if (email !== undefined) {
-    if (typeof email !== 'string' || !EMAIL_REGEX.test(email.trim())) {
+  if (location !== undefined) {
+    if (typeof location !== 'string' || location.trim().length === 0) {
       return NextResponse.json(
-        { success: false, error: 'Invalid email format' },
+        { success: false, error: 'Location cannot be empty' },
         { status: 400 }
       );
     }
-    updateData.email = email.trim();
-  }
-
-  if (role !== undefined) {
-    if (typeof role !== 'string' || role.trim().length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'Role cannot be empty' },
-        { status: 400 }
-      );
-    }
-    updateData.role = role.trim();
+    updateData.location = location.trim();
   }
 
   if (status !== undefined) {
-    if (!isValidStatus(status)) {
+    if (!isValidAssetStatus(status)) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Invalid status. Must be Active, Pending, or Inactive',
+          error:
+            'Invalid status. Must be one of: พร้อมใช้งาน, กำลังใช้งาน, ส่งซ่อม, จำหน่าย/ตัดบัญชี',
         },
         { status: 400 }
       );
     }
     updateData.status = status;
+  }
+
+  if (responsiblePerson !== undefined) {
+    if (
+      typeof responsiblePerson !== 'string' ||
+      responsiblePerson.trim().length === 0
+    ) {
+      return NextResponse.json(
+        { success: false, error: 'Responsible person cannot be empty' },
+        { status: 400 }
+      );
+    }
+    updateData.responsiblePerson = responsiblePerson.trim();
+  }
+
+  if (recordedBy !== undefined) {
+    if (typeof recordedBy !== 'string' || recordedBy.trim().length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Recorded by cannot be empty' },
+        { status: 400 }
+      );
+    }
+    updateData.recordedBy = recordedBy.trim();
   }
 
   if (notes !== undefined) {
