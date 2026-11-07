@@ -6,6 +6,7 @@ import {
   formatLogDateTime,
   getActionBadgeStyle,
 } from '../src/lib/filter-utils';
+import { findAssetByCode } from '../src/lib/ui-helpers';
 import { AssetRecord, AssetLogRecord } from '../src/lib/types';
 
 describe('filterRecords', () => {
@@ -406,3 +407,71 @@ describe('formatLogDateTime', () => {
     expect(formatLogDateTime('invalid-date')).toBe('invalid-date');
   });
 });
+
+describe('findAssetByCode lookup helper', () => {
+  const records: AssetRecord[] = [
+    {
+      id: '1',
+      assetCode: 'EQ-001',
+      name: 'Server Dell',
+      location: 'Room 101',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'Alice',
+      recordedBy: 'Admin',
+      notes: '',
+      createdAt: '',
+      updatedAt: '',
+    },
+    {
+      id: '2',
+      assetCode: 'EQ-002',
+      name: 'Switch Cisco',
+      location: 'Room 202',
+      status: 'กำลังใช้งาน',
+      responsiblePerson: 'Bob',
+      recordedBy: 'Admin',
+      notes: '',
+      createdAt: '',
+      updatedAt: '',
+    },
+  ];
+
+  it('finds existing asset ignoring case and whitespace', () => {
+    expect(findAssetByCode('  eq-001 ', records)?.name).toBe('Server Dell');
+  });
+
+  it('returns null when asset code not found', () => {
+    expect(findAssetByCode('EQ-999', records)).toBeNull();
+  });
+
+  it('returns null when code is empty or only whitespace', () => {
+    expect(findAssetByCode('', records)).toBeNull();
+    expect(findAssetByCode('   ', records)).toBeNull();
+  });
+
+  it('returns null when records is empty or undefined', () => {
+    expect(findAssetByCode('EQ-001', [])).toBeNull();
+    expect(findAssetByCode('EQ-001', undefined as unknown as AssetRecord[])).toBeNull();
+  });
+
+  it('handles records with missing or empty assetCode gracefully', () => {
+    const recordsWithEmpty = [
+      ...records,
+      {
+        id: '3',
+        assetCode: '',
+        name: 'No Code Item',
+        location: 'Room 303',
+        status: 'พร้อมใช้งาน' as const,
+        responsiblePerson: 'Charlie',
+        recordedBy: 'Admin',
+        notes: '',
+        createdAt: '',
+        updatedAt: '',
+      },
+    ];
+    expect(findAssetByCode('EQ-002', recordsWithEmpty)?.name).toBe('Switch Cisco');
+    expect(findAssetByCode('', recordsWithEmpty)).toBeNull();
+  });
+});
+
