@@ -636,7 +636,7 @@ describe('API Route Handlers', () => {
   });
 
   describe('DELETE /api/records/[id]', () => {
-    it('deletes record and returns status 200 with message', async () => {
+    it('deletes record and returns status 200 with message (soft decommissioned in ledger)', async () => {
       const req = new Request('http://localhost:3000/api/records/rec-demo-001', {
         method: 'DELETE',
       });
@@ -648,11 +648,11 @@ describe('API Route Handlers', () => {
 
       const json = await res.json();
       expect(json.success).toBe(true);
-      expect(json.message).toMatch(/deleted successfully/i);
+      expect(json.message).toMatch(/decommissioned|deleted/i);
 
-      // Verify deletion
+      // Verify soft decommissioning: asset exists with status 'จำหน่าย/ตัดบัญชี'
       const check = await sheetsService.getRecordById('rec-demo-001');
-      expect(check).toBeNull();
+      expect(check?.status).toBe('จำหน่าย/ตัดบัญชี');
     });
 
     it('returns 404 when deleting non-existent record', async () => {

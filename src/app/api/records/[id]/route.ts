@@ -192,7 +192,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: RouteContext
 ) {
   try {
@@ -205,7 +205,25 @@ export async function DELETE(
       );
     }
 
-    const success = await sheetsService.deleteRecord(id);
+    let recordedBy: string | undefined;
+    let notes: string | undefined;
+    try {
+      const url = new URL(request.url);
+      recordedBy = url.searchParams.get('recordedBy') || undefined;
+      notes = url.searchParams.get('notes') || undefined;
+    } catch {
+      // ignore
+    }
+
+    try {
+      const body = await request.json();
+      if (body?.recordedBy) recordedBy = body.recordedBy;
+      if (body?.notes) notes = body.notes;
+    } catch {
+      // Body is optional
+    }
+
+    const success = await sheetsService.deleteRecord(id, recordedBy, notes);
     if (!success) {
       return NextResponse.json(
         { success: false, error: 'Record not found' },
@@ -215,7 +233,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: 'Record deleted successfully',
+      message: 'Record decommissioned successfully',
     });
   } catch (error: any) {
     console.error('Failed to delete record:', error);
