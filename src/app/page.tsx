@@ -6,8 +6,9 @@ import {
   Plus,
   RefreshCw,
   Sparkles,
+  History,
 } from 'lucide-react';
-import { AssetRecord } from '@/lib/types';
+import { AssetRecord, AssetLogRecord } from '@/lib/types';
 import {
   filterRecords,
   sortRecords,
@@ -18,6 +19,7 @@ import { SetupBanner } from '@/components/SetupBanner';
 import { RecordTable } from '@/components/RecordTable';
 import { RecordModal, RecordModalFormData } from '@/components/RecordModal';
 import { DeleteDialog } from '@/components/DeleteDialog';
+import { LogHistoryModal } from '@/components/LogHistoryModal';
 import { Toast, ToastProps } from '@/components/Toast';
 
 export default function DashboardPage() {
@@ -47,6 +49,12 @@ export default function DashboardPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingRecord, setDeletingRecord] = useState<AssetRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Change logs history state
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historyTargetAsset, setHistoryTargetAsset] = useState<AssetRecord | null>(null);
+  const [historyLogs, setHistoryLogs] = useState<AssetLogRecord[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
 
   // Toast notification state
   const [toast, setToast] = useState<Omit<ToastProps, 'onDismiss'> | null>(null);
@@ -216,6 +224,43 @@ export default function DashboardPage() {
     }
   };
 
+  // Handle open history modal
+  const handleOpenHistory = useCallback(
+    async (asset?: AssetRecord) => {
+      setHistoryTargetAsset(asset || null);
+      setIsHistoryModalOpen(true);
+      setIsLoadingLogs(true);
+      try {
+        const url = asset?.assetCode
+          ? `/api/logs?assetCode=${encodeURIComponent(asset.assetCode)}`
+          : '/api/logs';
+        const res = await fetch(url);
+        const json = await res.json();
+
+        if (res.ok && json.success) {
+          setHistoryLogs(json.data || []);
+        } else {
+          const msg = json.details
+            ? `${json.error}: ${json.details}`
+            : json.error || 'ไม่สามารถโหลดประวัติการเปลี่ยนแปลงได้';
+          showToast('error', msg, 'เกิดข้อผิดพลาด');
+          setHistoryLogs([]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch logs:', err);
+        showToast(
+          'error',
+          'เกิดข้อผิดพลาดในการเชื่อมต่อเพื่อดึงประวัติการเปลี่ยนแปลง',
+          'การเชื่อมต่อขัดข้อง'
+        );
+        setHistoryLogs([]);
+      } finally {
+        setIsLoadingLogs(false);
+      }
+    },
+    [showToast]
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Toast Notification Container */}
@@ -257,6 +302,17 @@ export default function DashboardPage() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2.5 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => handleOpenHistory()}
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 shadow-xs transition-colors"
+              title="ดูประวัติการทำรายการทั้งหมดในระบบ"
+            >
+              <History className="w-4 h-4 text-slate-500" />
+              <span className="hidden sm:inline">ดูประวัติการเปลี่ยนแปลงทั้งหมด</span>
+              <span className="sm:hidden">ประวัติ</span>
+            </button>
+
             <button
               type="button"
               onClick={() => fetchRecords(true)}
@@ -306,6 +362,7 @@ export default function DashboardPage() {
           onEdit={(record) => setEditingRecord(record)}
           onDelete={(record) => setDeletingRecord(record)}
           onAddNew={() => setIsAddModalOpen(true)}
+          onViewHistory={(record) => handleOpenHistory(record)}
         />
       </main>
 
@@ -333,6 +390,18 @@ export default function DashboardPage() {
         isDeleting={isDeleting}
         onConfirm={handleDeleteConfirm}
         onClose={() => setDeletingRecord(null)}
+      />
+
+      {/* Change Log History Modal */}
+      <LogHistoryModal
+        isOpen={isHistoryModalOpen}
+        targetAsset={historyTargetAsset}
+        logs={historyLogs}
+        isLoading={isLoadingLogs}
+        onClose={() => {
+          setIsHistoryModalOpen(false);
+          setHistoryTargetAsset(null);
+        }}
       />
 
       {/* Footer */}

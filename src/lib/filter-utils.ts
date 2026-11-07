@@ -1,4 +1,4 @@
-import { AssetRecord } from './types';
+import { AssetRecord, AssetLogRecord, LogAction } from './types';
 
 export type SortField =
   | 'id'
@@ -87,4 +87,107 @@ export function sortRecords(
   });
 
   return sorted;
+}
+
+export interface ActionBadgeStyle {
+  bg: string;
+  text: string;
+  border: string;
+  dot: string;
+  label: string;
+}
+
+/**
+ * Returns visual styling tokens for change log action badges.
+ */
+export function getActionBadgeStyle(action: LogAction | string): ActionBadgeStyle {
+  switch (action) {
+    case 'บันทึกรายการใหม่':
+      return {
+        bg: 'bg-emerald-50',
+        text: 'text-emerald-700',
+        border: 'border-emerald-200/80',
+        dot: 'bg-emerald-500',
+        label: 'บันทึกรายการใหม่',
+      };
+    case 'แก้ไข/ย้ายตำแหน่ง':
+      return {
+        bg: 'bg-blue-50',
+        text: 'text-blue-700',
+        border: 'border-blue-200/80',
+        dot: 'bg-blue-500',
+        label: 'แก้ไข/ย้ายตำแหน่ง',
+      };
+    case 'ลบรายการ':
+      return {
+        bg: 'bg-rose-50',
+        text: 'text-rose-700',
+        border: 'border-rose-200/80',
+        dot: 'bg-rose-500',
+        label: 'ลบรายการ',
+      };
+    default:
+      return {
+        bg: 'bg-slate-100',
+        text: 'text-slate-700',
+        border: 'border-slate-200',
+        dot: 'bg-slate-400',
+        label: typeof action === 'string' ? action : '',
+      };
+  }
+}
+
+/**
+ * Formats ISO timestamp to Thai locale datetime (e.g. 7 พ.ย. 2569, 10:30).
+ */
+export function formatLogDateTime(dateString?: string): string {
+  if (!dateString) return '—';
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
+    return d.toLocaleString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  } catch {
+    return dateString;
+  }
+}
+
+/**
+ * Filters change logs in real-time matching across assetCode, name, action,
+ * location changes, responsible person changes, status changes, summary, recordedBy, and notes.
+ */
+export function filterLogs(logs: AssetLogRecord[], query: string): AssetLogRecord[] {
+  const normalizedQuery = (query || '').trim().toLowerCase();
+  if (normalizedQuery.length === 0) {
+    return logs;
+  }
+
+  return logs.filter((log) => {
+    const assetCodeMatch = (log.assetCode || '').toLowerCase().includes(normalizedQuery);
+    const nameMatch = (log.name || '').toLowerCase().includes(normalizedQuery);
+    const actionMatch = (log.action || '').toLowerCase().includes(normalizedQuery);
+    const locationMatch = (log.locationChange || '').toLowerCase().includes(normalizedQuery);
+    const responsibleMatch = (log.responsibleChange || '').toLowerCase().includes(normalizedQuery);
+    const statusMatch = (log.statusChange || '').toLowerCase().includes(normalizedQuery);
+    const summaryMatch = (log.changeSummary || '').toLowerCase().includes(normalizedQuery);
+    const recordedByMatch = (log.recordedBy || '').toLowerCase().includes(normalizedQuery);
+    const notesMatch = (log.notes || '').toLowerCase().includes(normalizedQuery);
+
+    return (
+      assetCodeMatch ||
+      nameMatch ||
+      actionMatch ||
+      locationMatch ||
+      responsibleMatch ||
+      statusMatch ||
+      summaryMatch ||
+      recordedByMatch ||
+      notesMatch
+    );
+  });
 }

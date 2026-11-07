@@ -13,6 +13,7 @@ import {
   Tag,
   MapPin,
   User,
+  History,
 } from 'lucide-react';
 import { AssetRecord, AssetStatus, ASSET_STATUSES } from '@/lib/types';
 import { SortField, SortDirection } from '@/lib/filter-utils';
@@ -31,6 +32,7 @@ export interface RecordTableProps {
   onEdit: (record: AssetRecord) => void;
   onDelete: (record: AssetRecord) => void;
   onAddNew: () => void;
+  onViewHistory?: (record: AssetRecord) => void;
 }
 
 export function RecordTable({
@@ -47,6 +49,7 @@ export function RecordTable({
   onEdit,
   onDelete,
   onAddNew,
+  onViewHistory,
 }: RecordTableProps) {
   // Format date helper with Thai localization fallback
   const formatDate = (dateString?: string) => {
@@ -422,6 +425,17 @@ export function RecordTable({
                   {/* จัดการ */}
                   <td className="py-3.5 px-4 sm:px-5 text-right whitespace-nowrap">
                     <div className="inline-flex items-center gap-1">
+                      {onViewHistory && (
+                        <button
+                          type="button"
+                          onClick={() => onViewHistory(record)}
+                          aria-label={`ดูประวัติ ${record.name} (${record.assetCode})`}
+                          title="ดูประวัติการเปลี่ยนแปลง"
+                          className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        >
+                          <History className="w-4 h-4" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => onEdit(record)}

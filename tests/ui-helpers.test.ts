@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { filterRecords, sortRecords } from '../src/lib/filter-utils';
-import { AssetRecord } from '../src/lib/types';
+import {
+  filterRecords,
+  sortRecords,
+  filterLogs,
+  formatLogDateTime,
+  getActionBadgeStyle,
+} from '../src/lib/filter-utils';
+import { AssetRecord, AssetLogRecord } from '../src/lib/types';
 
 describe('filterRecords', () => {
   const records: AssetRecord[] = [
@@ -253,5 +259,150 @@ describe('sortRecords', () => {
     const copy = [...records];
     sortRecords(records, 'assetCode', 'asc');
     expect(records).toEqual(copy);
+  });
+});
+
+describe('filterLogs', () => {
+  const sampleLogs: AssetLogRecord[] = [
+    {
+      id: 'log-1',
+      timestamp: '2026-01-01T10:00:00.000Z',
+      action: 'บันทึกรายการใหม่',
+      assetId: '1',
+      assetCode: 'EQ-001',
+      name: 'คอมพิวเตอร์ Dell',
+      locationChange: '-',
+      responsibleChange: '-',
+      statusChange: '-',
+      changeSummary: 'สร้างรายการใหม่',
+      recordedBy: 'เจ้าหน้าที่สมชาย',
+      notes: 'จัดซื้อประจำปี 69',
+    },
+    {
+      id: 'log-2',
+      timestamp: '2026-01-02T14:30:00.000Z',
+      action: 'แก้ไข/ย้ายตำแหน่ง',
+      assetId: '1',
+      assetCode: 'EQ-001',
+      name: 'คอมพิวเตอร์ Dell',
+      locationChange: 'อาคาร 1 ห้อง 101 ➔ อาคาร 2 ห้อง 202',
+      responsibleChange: 'สมชาย ➔ สมหญิง',
+      statusChange: 'พร้อมใช้งาน ➔ กำลังใช้งาน',
+      changeSummary: 'ย้ายสถานที่, เปลี่ยนผู้รับผิดชอบ, เปลี่ยนสถานะ',
+      recordedBy: 'เจ้าหน้าที่สมหญิง',
+      notes: 'ย้ายไปห้องแล็บใหม่',
+    },
+    {
+      id: 'log-3',
+      timestamp: '2026-01-03T09:15:00.000Z',
+      action: 'ลบรายการ',
+      assetId: '2',
+      assetCode: 'EQ-002',
+      name: 'เครื่องพิมพ์ HP',
+      locationChange: '-',
+      responsibleChange: '-',
+      statusChange: '-',
+      changeSummary: 'ลบรายการออกจากระบบ',
+      recordedBy: 'เจ้าหน้าที่สมชาย',
+      notes: 'ชำรุดจำหน่ายออก',
+    },
+  ];
+
+  it('filters logs by assetCode query case-insensitively', () => {
+    const result = filterLogs(sampleLogs, 'eq-002');
+    expect(result.length).toBe(1);
+    expect(result[0].id).toBe('log-3');
+  });
+
+  it('filters logs by asset name', () => {
+    const result = filterLogs(sampleLogs, 'Dell');
+    expect(result.length).toBe(2);
+  });
+
+  it('filters logs by action', () => {
+    const result = filterLogs(sampleLogs, 'ลบรายการ');
+    expect(result.length).toBe(1);
+    expect(result[0].id).toBe('log-3');
+  });
+
+  it('filters logs by location change text', () => {
+    const result = filterLogs(sampleLogs, 'อาคาร 2');
+    expect(result.length).toBe(1);
+    expect(result[0].id).toBe('log-2');
+  });
+
+  it('filters logs by responsible person change text', () => {
+    const result = filterLogs(sampleLogs, 'สมหญิง');
+    expect(result.length).toBe(1);
+    expect(result[0].id).toBe('log-2');
+  });
+
+  it('filters logs by recordedBy and notes', () => {
+    const resultNotes = filterLogs(sampleLogs, 'จัดซื้อประจำปี');
+    expect(resultNotes.length).toBe(1);
+    expect(resultNotes[0].id).toBe('log-1');
+  });
+
+  it('returns all logs when query is empty or whitespace', () => {
+    expect(filterLogs(sampleLogs, '').length).toBe(3);
+    expect(filterLogs(sampleLogs, '   ').length).toBe(3);
+  });
+
+  it('handles null and undefined fields defensively', () => {
+    const sparseLogs: any[] = [
+      {
+        id: 'sparse-1',
+        assetCode: null,
+        name: undefined,
+        action: 'บันทึกรายการใหม่',
+        locationChange: undefined,
+        responsibleChange: null,
+        statusChange: undefined,
+        changeSummary: null,
+        recordedBy: undefined,
+        notes: null,
+      },
+    ];
+    expect(() => filterLogs(sparseLogs, 'test')).not.toThrow();
+    expect(filterLogs(sparseLogs, 'test').length).toBe(0);
+  });
+});
+
+describe('getActionBadgeStyle', () => {
+  it('returns green badge style for "บันทึกรายการใหม่"', () => {
+    const style = getActionBadgeStyle('บันทึกรายการใหม่');
+    expect(style.bg).toContain('emerald');
+    expect(style.text).toContain('emerald');
+  });
+
+  it('returns blue badge style for "แก้ไข/ย้ายตำแหน่ง"', () => {
+    const style = getActionBadgeStyle('แก้ไข/ย้ายตำแหน่ง');
+    expect(style.bg).toContain('blue');
+    expect(style.text).toContain('blue');
+  });
+
+  it('returns rose badge style for "ลบรายการ"', () => {
+    const style = getActionBadgeStyle('ลบรายการ');
+    expect(style.bg).toContain('rose');
+    expect(style.text).toContain('rose');
+  });
+
+  it('returns neutral badge style for unknown action', () => {
+    const style = getActionBadgeStyle('unknown');
+    expect(style.bg).toContain('slate');
+  });
+});
+
+describe('formatLogDateTime', () => {
+  it('formats ISO timestamp into readable Thai datetime', () => {
+    const formatted = formatLogDateTime('2026-01-15T08:30:00.000Z');
+    expect(formatted).toBeTruthy();
+    expect(typeof formatted).toBe('string');
+  });
+
+  it('returns fallback string for invalid or empty dates', () => {
+    expect(formatLogDateTime('')).toBe('—');
+    expect(formatLogDateTime(undefined)).toBe('—');
+    expect(formatLogDateTime('invalid-date')).toBe('invalid-date');
   });
 });
