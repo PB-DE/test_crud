@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { X, Loader2, PackagePlus, PencilLine } from 'lucide-react';
 import { AssetRecord, AssetStatus, ASSET_STATUSES } from '@/lib/types';
 import { findAssetByCode } from '@/lib/ui-helpers';
+import { QrScannerModal } from './QrScannerModal';
 
 export interface RecordModalFormData {
   assetCode: string;
@@ -55,6 +56,7 @@ export function RecordModal({
 
   const [isStatusModified, setIsStatusModified] = useState(false);
   const [isResponsibleModified, setIsResponsibleModified] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const firstInputRef = useRef<HTMLInputElement>(null);
 
@@ -204,13 +206,17 @@ export function RecordModal({
     }
   };
 
-  // Unique options for datalist
-  const datalistOptions = Array.from(
-    new Map(
-      records
-        .filter((r) => r.assetCode && r.assetCode.trim())
-        .map((r) => [r.assetCode.trim().toLowerCase(), r])
-    ).values()
+  // Unique options for datalist memoized to avoid recomputing on every render
+  const datalistOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          records
+            .filter((r) => r.assetCode && r.assetCode.trim())
+            .map((r) => [r.assetCode.trim().toLowerCase(), r])
+        ).values()
+      ),
+    [records]
   );
 
   return (
@@ -284,23 +290,34 @@ export function RecordModal({
                   </span>
                 )}
               </label>
-              <input
-                ref={firstInputRef}
-                id="field-assetCode"
-                list="asset-codes-list"
-                type="text"
-                disabled={isEditing}
-                placeholder="เช่น EQ-2026-001"
-                value={formData.assetCode}
-                onChange={(e) => handleAssetCodeChange(e.target.value)}
-                className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
-                  isEditing
-                    ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
-                    : errors.assetCode
-                    ? 'border-rose-400 focus:ring-rose-500/20'
-                    : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
-                } focus:outline-none focus:ring-2 transition-all font-mono`}
-              />
+              <div className="flex gap-2">
+                <input
+                  ref={firstInputRef}
+                  id="field-assetCode"
+                  list="asset-codes-list"
+                  type="text"
+                  disabled={isEditing}
+                  placeholder="เช่น EQ-2026-001"
+                  value={formData.assetCode}
+                  onChange={(e) => handleAssetCodeChange(e.target.value)}
+                  className={`flex-1 min-w-0 px-3.5 py-2 text-sm rounded-xl border ${
+                    isEditing
+                      ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                      : errors.assetCode
+                      ? 'border-rose-400 focus:ring-rose-500/20'
+                      : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
+                  } focus:outline-none focus:ring-2 transition-all font-mono`}
+                />
+                <button
+                  type="button"
+                  disabled={isEditing}
+                  onClick={() => setIsScannerOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-300 rounded-xl transition-colors shrink-0 shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  title="สแกน QR Code จากกล้อง"
+                >
+                  📷 สแกน QR
+                </button>
+              </div>
               <datalist id="asset-codes-list">
                 {datalistOptions.map((r) => (
                   <option key={r.id || r.assetCode} value={r.assetCode}>
@@ -558,6 +575,15 @@ export function RecordModal({
           </div>
         </form>
       </div>
+
+      {/* QR Code Mobile Scanner Modal */}
+      <QrScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScan={(cleanCode) => {
+          handleAssetCodeChange(cleanCode);
+        }}
+      />
     </div>
   );
 }

@@ -23,3 +23,11 @@ export function findAssetByCode(
   );
   return found || null;
 }
+
+/**
+ * Sanitizes raw QR code payload by trimming surrounding whitespace and newlines.
+ */
+export function cleanQrPayload(raw: string): string {
+  return (raw || '').trim();
+}
+
