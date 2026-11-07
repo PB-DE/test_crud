@@ -27,6 +27,23 @@ export function isValidAssetStatus(status: unknown): status is AssetStatus {
   return typeof status === 'string' && (ASSET_STATUSES as readonly string[]).includes(status);
 }
 
+export type LogAction = 'บันทึกรายการใหม่' | 'แก้ไข/ย้ายตำแหน่ง' | 'ลบรายการ';
+
+export interface AssetLogRecord {
+  id: string;
+  timestamp: string;
+  action: LogAction;
+  assetId: string;
+  assetCode: string;
+  name: string;
+  locationChange: string;
+  responsibleChange: string;
+  statusChange: string;
+  changeSummary: string;
+  recordedBy: string;
+  notes: string;
+}
+
 // Backward-compatible aliases for downstream modules during transition:
 export type RecordItem = AssetRecord;
 export type CreateRecordInput = CreateAssetInput;
