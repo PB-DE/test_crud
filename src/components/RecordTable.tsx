@@ -369,10 +369,25 @@ export function RecordTable({
                 >
                   {/* รหัสครุภัณฑ์ */}
                   <td className="py-3.5 px-4 sm:px-5 font-mono text-xs sm:text-sm font-semibold text-blue-700 whitespace-nowrap">
-                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50/60 border border-blue-100">
-                      <Tag className="w-3 h-3 text-blue-500" />
-                      <span>{record.assetCode}</span>
-                    </div>
+                    {onViewHistory ? (
+                      <button
+                        type="button"
+                        onClick={() => onViewHistory(record)}
+                        title={`คลิกเพื่อดูประวัติและ Transaction Log ของ ${record.assetCode}`}
+                        aria-label={`ดูประวัติและ Log ของ ${record.assetCode}`}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50/80 border border-blue-200/80 text-blue-700 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-900 transition-all cursor-pointer group/code focus:outline-hidden focus:ring-2 focus:ring-blue-500/30 text-left"
+                      >
+                        <Tag className="w-3.5 h-3.5 text-blue-500 group-hover/code:text-blue-700 transition-colors shrink-0" />
+                        <span className="underline decoration-blue-300/80 underline-offset-2 group-hover/code:decoration-blue-600 font-medium">
+                          {record.assetCode}
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50/60 border border-blue-100">
+                        <Tag className="w-3 h-3 text-blue-500 shrink-0" />
+                        <span>{record.assetCode}</span>
+                      </div>
+                    )}
                   </td>
 
                   {/* ชื่อรายการครุภัณฑ์ */}
