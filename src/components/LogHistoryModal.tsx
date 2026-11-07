@@ -236,6 +236,14 @@ export function LogHistoryModal({
 
                       {/* Diffs & Details */}
                       <div className="space-y-2">
+                        {log.changeSummary && log.action !== 'บันทึกรายการใหม่' && log.action !== 'ลบรายการ' && (
+                          <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+                            <span className="text-slate-400 font-medium">สรุปการเปลี่ยนแปลง:</span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/60 font-medium">
+                              {log.changeSummary}
+                            </span>
+                          </div>
+                        )}
                         {renderDiff(
                           log.locationChange,
                           <MapPin className="w-4 h-4 text-amber-500 shrink-0" />,
@@ -254,13 +262,13 @@ export function LogHistoryModal({
                         {log.action === 'บันทึกรายการใหม่' && (
                           <div className="text-xs sm:text-sm text-emerald-700 font-medium bg-emerald-50/70 border border-emerald-100 rounded-lg p-2.5 flex items-center gap-2">
                             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                            <span>บันทึกรายการใหม่เข้าสู่ระบบ</span>
+                            <span>{log.changeSummary || 'บันทึกรายการใหม่เข้าสู่ระบบ'}</span>
                           </div>
                         )}
                         {log.action === 'ลบรายการ' && (
                           <div className="text-xs sm:text-sm text-rose-700 font-medium bg-rose-50/70 border border-rose-100 rounded-lg p-2.5 flex items-center gap-2">
                             <Trash2 className="w-4 h-4 text-rose-600 shrink-0" />
-                            <span>ลบรายการออกจากระบบ</span>
+                            <span>{log.changeSummary || 'ลบรายการออกจากระบบ'}</span>
                           </div>
                         )}
                       </div>

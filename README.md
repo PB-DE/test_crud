@@ -14,6 +14,8 @@
 ## จุดเด่นและคุณสมบัติหลัก (Highlights & Features)
 
 - **ระบบจัดการข้อมูลครุภัณฑ์ครบวงจร (Full CRUD):** สร้าง, ค้นหา, ดูรายละเอียด, แก้ไข และลบข้อมูลตำแหน่งครุภัณฑ์ พร้อมบันทึกและซิงค์ข้อมูลกับ Google Sheets แบบเรียลไทม์
+- **ระบบบันทึกประวัติการเปลี่ยนแปลงอัตโนมัติ (Dual-Sheet Audit Trail):** ทุกการสร้าง แก้ไข ย้ายสถานที่ เปลี่ยนสถานะ หรือลบ จะถูกคำนวณส่วนต่าง (Diff) และบันทึกลงแผ่นงาน `Logs` แยกต่างหากอย่างละเอียด
+- **ไทม์ไลน์ประวัติการทำรายการ (Change Log Timeline Modal):** แสดงประวัติการทำรายการพร้อมเปรียบเทียบค่าเดิม ➔ ค่าใหม่ (เช่น ตำแหน่ง, ผู้รับผิดชอบ, สถานะ) สามารถดูประวัติรวมทั้งหมดหรือเจาะจงเฉพาะครุภัณฑ์แต่ละชิ้นได้ พร้อมระบบค้นหาแบบเรียลไทม์
 - **โครงสร้างข้อมูลเฉพาะทางสำหรับครุภัณฑ์:** ติดตามรหัสครุภัณฑ์ (`assetCode`), ชื่อครุภัณฑ์ (`name`), ตำแหน่งที่ตั้ง (`location`), ผู้รับผิดชอบ (`responsiblePerson`), ผู้บันทึก (`recordedBy`), หมายเหตุ (`notes`), และสถานะการใช้งาน
 - **สถานะครุภัณฑ์มาตรฐาน 4 ระดับ (Status Badges):**
   - 🟢 **พร้อมใช้งาน (Available / Ready)**
@@ -23,16 +25,20 @@
 - **การค้นหาและกรองข้อมูลแบบเรียลไทม์ (Real-Time Search & Filtering):** ค้นหาได้ทันทีข้ามทั้งรหัสครุภัณฑ์, ชื่อครุภัณฑ์, ตำแหน่งที่ตั้ง, ผู้รับผิดชอบ และผู้บันทึก พร้อมแท็บกรองตามสถานะ
 - **การเรียงลำดับคอลัมน์ (Multi-Column Sorting):** คลิกหัวตารางเพื่อเรียงลำดับตามวันที่อัปเดต, รหัสครุภัณฑ์, ชื่อครุภัณฑ์ หรือตำแหน่งที่ตั้ง ทั้งขาขึ้น (asc) และขาลง (desc)
 - **Modal Dialog และส่วนต่อประสานที่เข้าถึงได้ (Accessible UI):** รองรับคีย์บอร์ด (Esc เพื่อปิด, Enter เพื่อยืนยัน), ป้องกันการคลิกพื้นหลังหลุด, พร้อมการแจ้งเตือนแบบ Toast
-- **รองรับโหมดจำลอง (Demo Mode Fallback):** ใช้งานได้ทันทีแม้ยังไม่ต่อ Google Credentials ด้วย In-Memory Store และข้อมูลตัวอย่างภาษาไทย
-- **Auto-Initialization ของ Google Sheet:** เมื่อเชื่อมต่อ Sheet ว่าง ระบบจะเขียน Header คอลัมน์ภาษาไทย (`A:J`) ให้อัตโนมัติในครั้งแรก
+- **รองรับโหมดจำลอง (Demo Mode Fallback):** ใช้งานได้ทันทีแม้ยังไม่ต่อ Google Credentials ด้วย In-Memory Store และข้อมูลตัวอย่างภาษาไทย ทั้งข้อมูลครุภัณฑ์และประวัติการเปลี่ยนแปลง
+- **Auto-Initialization ของ Google Sheet:** เมื่อเชื่อมต่อ Sheet ว่าง ระบบจะเขียน Header คอลัมน์ภาษาไทยทั้งในแผ่นงานหลัก (`A:J`) และแผ่นงาน `Logs` (`A:K`) ให้อัตโนมัติในครั้งแรก
 - **การจัดการแถวที่ทนทาน (Resilient UUID Indexing):** อ้างอิงแถวด้วยรหัส UUID ถาวร แม้จะมีการเรียงลำดับหรือแก้ไขแถวใน Google Sheets โดยตรงก็ไม่เกิดปัญหาข้อมูลเหลื่อมล้ำ
 - **Type-Safe REST API:** สร้างด้วย Next.js App Router route handlers พร้อมการตรวจสอบความถูกต้องของข้อมูล (Validation) และ Error Handling อย่างรัดกุม
 
 ---
 
-## โครงสร้างคอลัมน์ Google Sheet (Column Mapping A:J)
+## โครงสร้างฐานข้อมูล Google Sheet (Dual-Sheet Database Architecture)
 
-แอปพลิเคชันจะจัดเก็บข้อมูลลงใน Google Sheet โดยใช้ช่วงคอลัมน์ `A:J` ดังต่อไปนี้:
+ระบบใช้สถาปัตยกรรมฐานข้อมูล 2 แผ่นงาน (Dual-Sheet) ภายใน Google Spreadsheet เดียวกัน เพื่อแยกข้อมูลสถานะปัจจุบันออกจากประวัติการทำรายการ:
+
+### 1. แผ่นงานหลักสำหรับรายการครุภัณฑ์ปัจจุบัน (`Assets` หรือแผ่นงานแรก `A:J`)
+
+จัดเก็บสถานะล่าสุดของครุภัณฑ์แต่ละชิ้น (1 แถวต่อ 1 ครุภัณฑ์):
 
 | คอลัมน์ | ชื่อคอลัมน์ (Header) | ฟิลด์ข้อมูล (JSON Key) | ชนิดข้อมูล | คำอธิบาย | จำเป็น |
 | :---: | :--- | :--- | :--- | :--- | :---: |
@@ -46,6 +52,24 @@
 | **H** | `หมายเหตุ` | `notes` | String | ข้อมูลเพิ่มเติม รายละเอียดอาการ หรือสเปก | ไม่ |
 | **I** | `วันที่บันทึก` | `createdAt` | ISO 8601 String | วันเวลาที่ลงทะเบียนครุภัณฑ์ครั้งแรก | สร้างอัตโนมัติ |
 | **J** | `วันที่แก้ไข` | `updatedAt` | ISO 8601 String | วันเวลาที่อัปเดตข้อมูลตำแหน่งหรือสถานะล่าสุด | อัปเดตอัตโนมัติ |
+
+### 2. แผ่นงานประวัติการเปลี่ยนแปลง (`Logs!A:K`)
+
+จัดเก็บประวัติการทำรายการทุกครั้ง (Audit Trail) แบบ Append-Only (1 แถวต่อ 1 กิจกรรม):
+
+| คอลัมน์ | ชื่อคอลัมน์ (Header) | ฟิลด์ข้อมูล (JSON Key) | ชนิดข้อมูล | คำอธิบาย |
+| :---: | :--- | :--- | :--- | :--- |
+| **A** | `Log ID` | `id` | String (UUID) | รหัสประจำรายการประวัติ สร้างอัตโนมัติ |
+| **B** | `วันเวลาที่ทำรายการ` | `timestamp` | ISO 8601 String | วันและเวลาที่เกิดการเปลี่ยนแปลง (UTC/ISO) |
+| **C** | `การกระทำ` | `action` | Enum String | `บันทึกรายการใหม่`, `แก้ไข/ย้ายตำแหน่ง`, `ลบรายการ` |
+| **D** | `รหัสครุภัณฑ์` | `assetCode` | String | รหัสครุภัณฑ์ที่ทำรายการ |
+| **E** | `ชื่อครุภัณฑ์` | `name` | String | ชื่อครุภัณฑ์ ณ ขณะทำรายการ |
+| **F** | `ตำแหน่ง (เดิม ➔ ใหม่)` | `locationChange` | String | เปรียบเทียบตำแหน่งเดิมกับตำแหน่งใหม่ เช่น `คลัง A ➔ ห้อง 101` หรือ `-` |
+| **G** | `ผู้รับผิดชอบ (เดิม ➔ ใหม่)` | `responsibleChange` | String | เปรียบเทียบผู้รับผิดชอบ เช่น `นาย ก ➔ นาย ข` หรือ `-` |
+| **H** | `สถานะ (เดิม ➔ ใหม่)` | `statusChange` | String | เปรียบเทียบสถานะ เช่น `พร้อมใช้งาน ➔ ส่งซ่อม` หรือ `-` |
+| **I** | `สรุปสิ่งที่เปลี่ยนแปลง` | `changeSummary` | String | สรุปหัวข้อฟิลด์ที่ถูกแก้ไข เช่น `ย้ายสถานที่, เปลี่ยนผู้รับผิดชอบ` |
+| **J** | `ผู้บันทึก` | `recordedBy` | String | ชื่อเจ้าหน้าที่ผู้ทำรายการ |
+| **K** | `หมายเหตุ` | `notes` | String | บันทึกช่วยจำหรือเหตุผลประกอบการทำรายการ |
 
 ---
 
@@ -69,6 +93,7 @@
 │                       Browser / Client                      │
 │   - Next.js Client Dashboard (`src/app/page.tsx`)           │
 │   - RecordTable, RecordModal, DeleteDialog, SetupBanner     │
+│   - LogHistoryModal (Audit Trail Timeline & Diff Viewer)    │
 └──────────────────────────────┬──────────────────────────────┘
                                │
                                │ Fetch HTTP / JSON
@@ -80,14 +105,16 @@
 │   - `GET /api/records/[id]`   - Get single asset record     │
 │   - `PUT /api/records/[id]`   - Update asset record         │
 │   - `DELETE /api/records/[id]`- Delete asset record         │
+│   - `GET /api/logs`           - Audit trail (?assetCode=..) │
 │   - `GET /api/status`         - Health / credential status  │
 └──────────────────────────────┬──────────────────────────────┘
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
 │               Service Layer (`src/lib/sheets.ts`)           │
-│   - Auto Header Initialization (`A1:J1`)                    │
+│   - Dual-Sheet Auto-Initialization (`Assets!A:J`, `Logs!A:K`)│
 │   - Row Index Mapping via Persistent UUID                   │
+│   - Diff Engine (`computeAssetDiff` in `log-utils.ts`)      │
 │   - Input Validation & Asset Status Normalization           │
 └──────────────┬──────────────────────────────┬───────────────┘
                │                              │
@@ -95,7 +122,8 @@
                ▼                              ▼
 ┌──────────────────────────────┐ ┌────────────────────────────┐
 │      Google Sheets API       │ │    In-Memory Demo Store    │
-│  (Remote Cloud Spreadsheet)  │ │      (Mock Fallback)       │
+│  - Tab 1: Current Assets     │ │  - Demo Asset Records      │
+│  - Tab 2: Logs (Audit Trail) │ │  - Demo Audit Logs Store   │
 └──────────────────────────────┘ └────────────────────────────┘
 ```
 
@@ -168,6 +196,8 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvg...=\n-----END PRIVATE KE
 ├── src/
 │   ├── app/
 │   │   ├── api/
+│   │   │   ├── logs/
+│   │   │   │   └── route.ts            # GET /api/logs (audit logs & ?assetCode filter)
 │   │   │   ├── records/
 │   │   │   │   ├── route.ts            # GET /api/records, POST /api/records
 │   │   │   │   └── [id]/
@@ -179,25 +209,28 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvg...=\n-----END PRIVATE KE
 │   │   └── page.tsx                    # Main interactive Asset Tracking dashboard
 │   ├── components/
 │   │   ├── DeleteDialog.tsx            # Confirmation modal for asset deletion
+│   │   ├── LogHistoryModal.tsx         # Audit Trail timeline modal & diff viewer
 │   │   ├── RecordModal.tsx             # Create & Edit asset modal dialog
-│   │   ├── RecordTable.tsx             # Responsive data table with search & tabs
+│   │   ├── RecordTable.tsx             # Responsive data table with search, tabs & history trigger
 │   │   ├── SetupBanner.tsx             # Helper banner for Demo Mode / setup instructions
 │   │   └── Toast.tsx                   # Toast notification alerts
 │   └── lib/
 │       ├── env.ts                      # Environment loader with newline normalization
-│       ├── filter-utils.ts             # Search, status tab filter, and column sorting
-│       ├── sheets.ts                   # Google Sheets SDK integration & demo fallback
-│       ├── types.ts                    # AssetRecord models, status union, and validators
+│       ├── filter-utils.ts             # Search, status tab filter, log filtering & sorting
+│       ├── log-utils.ts                # Diff computation engine (computeAssetDiff)
+│       ├── sheets.ts                   # Google Sheets dual-sheet service layer & demo fallback
+│       ├── types.ts                    # AssetRecord & AssetLogRecord models, validators
 │       └── utils.ts                    # Tailwind CSS class merging utilities
 ├── docs/
 │   ├── GOOGLE_SHEETS_SETUP.md          # Step-by-step Google Cloud & Sheets setup guide
 │   └── VERCEL_DEPLOYMENT.md            # Step-by-step Vercel deployment walkthrough
 ├── tests/
-│   ├── api.test.ts                     # API endpoint route tests (CRUD & validation)
+│   ├── api.test.ts                     # API endpoint route tests (CRUD, logs & validation)
 │   ├── env.test.ts                     # Environment loader tests
-│   ├── sheets.test.ts                  # Google Sheets service layer tests
+│   ├── log-utils.test.ts               # Change detection & diff engine tests
+│   ├── sheets.test.ts                  # Google Sheets dual-sheet service layer tests
 │   ├── types.test.ts                   # Type definition & status validation tests
-│   └── ui-helpers.test.ts              # Filter, search, and sorting utility tests
+│   └── ui-helpers.test.ts              # Filter, search, log filtering & UI helper tests
 ├── .env.example                        # Template for environment variables
 ├── .gitignore                          # Strict gitignore protecting keys and secrets
 ├── next.config.ts                      # Next.js configuration
@@ -215,14 +248,15 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvg...=\n-----END PRIVATE KE
 
 ### รายการ Endpoints
 
-| Method | Endpoint | Description | Success Code |
-| :--- | :--- | :--- | :---: |
-| `GET` | `/api/status` | ตรวจสอบสถานะการเชื่อมต่อกับ Google Sheets | `200 OK` |
-| `GET` | `/api/records` | เรียกดูรายการครุภัณฑ์ทั้งหมด | `200 OK` |
-| `POST` | `/api/records` | สร้างรายการครุภัณฑ์ใหม่ | `201 Created` |
-| `GET` | `/api/records/[id]` | เรียกดูข้อมูลครุภัณฑ์รายชิ้นตาม ID | `200 OK` |
-| `PUT` | `/api/records/[id]` | แก้ไขข้อมูลครุภัณฑ์ (รองรับ partial update) | `200 OK` |
-| `DELETE` | `/api/records/[id]` | ลบรายการครุภัณฑ์ออกจากระบบ | `200 OK` |
+| Method | Endpoint | Description | Query Parameters | Success Code |
+| :--- | :--- | :--- | :--- | :---: |
+| `GET` | `/api/status` | ตรวจสอบสถานะการเชื่อมต่อกับ Google Sheets | - | `200 OK` |
+| `GET` | `/api/records` | เรียกดูรายการครุภัณฑ์ทั้งหมด | - | `200 OK` |
+| `POST` | `/api/records` | สร้างรายการครุภัณฑ์ใหม่ (พร้อมบันทึกลง `Logs`) | - | `201 Created` |
+| `GET` | `/api/records/[id]` | เรียกดูข้อมูลครุภัณฑ์รายชิ้นตาม ID | - | `200 OK` |
+| `PUT` | `/api/records/[id]` | แก้ไขข้อมูลครุภัณฑ์ (คำนวณ diff บันทึกลง `Logs`) | - | `200 OK` |
+| `DELETE` | `/api/records/[id]` | ลบรายการครุภัณฑ์ออกจากระบบ (พร้อมบันทึกลง `Logs`) | - | `200 OK` |
+| `GET` | `/api/logs` | เรียกดูประวัติการเปลี่ยนแปลงทั้งหมด | `assetCode` (optional) | `200 OK` |
 
 ### ตัวอย่าง Request และ Response
 
@@ -298,6 +332,34 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvg...=\n-----END PRIVATE KE
 {
   "success": true,
   "message": "Record deleted successfully"
+}
+```
+
+#### 4. `GET /api/logs` (เรียกดูประวัติการเปลี่ยนแปลงทั้งหมด หรือกรองตามรหัสครุภัณฑ์)
+
+**Query Parameters:**
+- `assetCode` *(optional)*: รหัสครุภัณฑ์ที่ต้องการดูประวัติ เช่น `/api/logs?assetCode=EQ-2026-001` หากไม่ระบุจะคืนประวัติทั้งหมด
+
+**Response (`200 OK`):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "log-67890abc-1234-5678-90ab-cdef12345678",
+      "timestamp": "2026-11-07T09:15:00.000Z",
+      "action": "แก้ไข/ย้ายตำแหน่ง",
+      "assetId": "rec-550e8400-e29b-41d4-a716-446655440000",
+      "assetCode": "EQ-2026-001",
+      "name": "คอมพิวเตอร์ All-in-One Dell OptiPlex 7400",
+      "locationChange": "ฝ่ายเทคโนโลยีสารสนเทศ ชั้น 4 ➔ กองบริหารงานทั่วไป ชั้น 2",
+      "responsibleChange": "นายสมเกียรติ ยั่งยืน ➔ นางสาวพัชรี นวลจันทร์",
+      "statusChange": "พร้อมใช้งาน ➔ กำลังใช้งาน",
+      "changeSummary": "ย้ายสถานที่, เปลี่ยนผู้รับผิดชอบ, เปลี่ยนสถานะ",
+      "recordedBy": "นางสาววิไลลักษณ์ มั่นคง",
+      "notes": "ย้ายสถานที่ใช้งานชั่วคราวสำหรับโครงการจัดซื้อจัดจ้าง"
+    }
+  ]
 }
 ```
 

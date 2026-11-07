@@ -7,24 +7,28 @@ This guide walks you through setting up Google Cloud, enabling the Google Sheets
 ## Architecture Overview
 
 ```
-┌─────────────────────────┐       ┌────────────────────────┐
-│   Google Cloud Console  │       │      Google Drive      │
-│  - New Project          │       │  - Google Spreadsheet  │
-│  - Enable Sheets API    │       │    (Sheet ID in URL)   │
-│  - Service Account      │       └───────────┬────────────┘
-│    (Email + JSON Key)   │                   │
-└────────────┬────────────┘                   │
-             │                                │ Shared with Editor
-             │ Download JSON key              │ permissions
-             ▼                                ▼
-┌──────────────────────────────────────────────────────────┐
-│                   Next.js Application                    │
-│                                                          │
-│  .env.local / Vercel Environment Variables:              │
-│  - GOOGLE_SHEET_ID                                       │
-│  - GOOGLE_SERVICE_ACCOUNT_EMAIL                          │
-│  - GOOGLE_PRIVATE_KEY                                    │
-└──────────────────────────────────────────────────────────┘
+┌─────────────────────────┐       ┌─────────────────────────────────────┐
+│   Google Cloud Console  │       │             Google Drive            │
+│  - New Project          │       │  - Google Spreadsheet               │
+│  - Enable Sheets API    │       │    - Tab 1: Current Assets (A:J)    │
+│  - Service Account      │       │    - Tab 2: Logs Audit Trail (A:K)  │
+│    (Email + JSON Key)   │       └──────────────────┬──────────────────┘
+└────────────┬────────────┘                          │
+             │                                       │ Shared with Editor
+             │ Download JSON key                     │ permissions
+             ▼                                       ▼
+┌───────────────────────────────────────────────────────────────────────┐
+│                          Next.js Application                          │
+│                                                                       │
+│  .env.local / Vercel Environment Variables:                           │
+│  - GOOGLE_SHEET_ID                                                    │
+│  - GOOGLE_SERVICE_ACCOUNT_EMAIL                                       │
+│  - GOOGLE_PRIVATE_KEY                                                 │
+│                                                                       │
+│  REST APIs:                                                           │
+│  - /api/records (CRUD on Tab 1)                                       │
+│  - /api/logs (?assetCode=... on Tab 2)                                │
+└───────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -154,9 +158,49 @@ By default, a new Google Sheet is private to your personal Google account. The S
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### 4. Dual-Sheet Database Structure (Assets + Logs)
+
+The application organizes data into two sheets within the same spreadsheet:
+
+```
+Google Spreadsheet
+├── Tab 1: Assets (Current Records, Columns A:J)
+└── Tab 2: Logs   (Change Audit Trail, Columns A:K)
+```
+
+#### Tab 1: Current Assets (`Assets!A:J`)
+Stores the current active state of each asset (1 row per asset):
+- **A:** `ID` (UUID)
+- **B:** `รหัสครุภัณฑ์` (Asset Code, e.g. `EQ-2026-001`)
+- **C:** `ชื่อครุภัณฑ์` (Asset Name)
+- **D:** `ตำแหน่งที่ตั้ง` (Location)
+- **E:** `สถานะ` (Status: `พร้อมใช้งาน`, `กำลังใช้งาน`, `ส่งซ่อม`, `จำหน่าย/ตัดบัญชี`)
+- **F:** `ผู้รับผิดชอบ` (Responsible Person)
+- **G:** `ผู้บันทึก` (Recorded By)
+- **H:** `หมายเหตุ` (Notes)
+- **I:** `วันที่บันทึก` (Created At ISO)
+- **J:** `วันที่แก้ไข` (Updated At ISO)
+
+#### Tab 2: Audit Logs (`Logs!A:K`)
+Stores the append-only history of every create, update, location transfer, and delete operation:
+
+| Column | Header | Key | Type | Description |
+| :---: | :--- | :--- | :--- | :--- |
+| **A** | `Log ID` | `id` | String (UUID) | Unique log entry identifier |
+| **B** | `วันเวลาที่ทำรายการ` | `timestamp` | ISO 8601 String | UTC timestamp when action occurred |
+| **C** | `การกระทำ` | `action` | Enum String | `บันทึกรายการใหม่`, `แก้ไข/ย้ายตำแหน่ง`, `ลบรายการ` |
+| **D** | `รหัสครุภัณฑ์` | `assetCode` | String | Associated asset identifier code |
+| **E** | `ชื่อครุภัณฑ์` | `name` | String | Asset name at time of event |
+| **F** | `ตำแหน่ง (เดิม ➔ ใหม่)` | `locationChange` | String | Location diff (e.g. `คลัง A ➔ ห้อง 101` or `-`) |
+| **G** | `ผู้รับผิดชอบ (เดิม ➔ ใหม่)` | `responsibleChange` | String | Custodian diff (e.g. `นาย ก ➔ นาย ข` or `-`) |
+| **H** | `สถานะ (เดิม ➔ ใหม่)` | `statusChange` | String | Status diff (e.g. `พร้อมใช้งาน ➔ ส่งซ่อม` or `-`) |
+| **I** | `สรุปสิ่งที่เปลี่ยนแปลง` | `changeSummary` | String | Human-readable list of modified fields |
+| **J** | `ผู้บันทึก` | `recordedBy` | String | Operator name who made the change |
+| **K** | `หมายเหตุ` | `notes` | String | Notes or change reason |
+
 > [!NOTE]
-> **No Manual Column Setup Required!**
-> You do **not** need to manually format or type column headers in the new sheet. The application automatically detects blank sheets and writes the initial header row (`ID`, `รหัสครุภัณฑ์`, `ชื่อครุภัณฑ์`, `ตำแหน่งที่ตั้ง`, `สถานะ`, `ผู้รับผิดชอบ`, `ผู้บันทึก`, `หมายเหตุ`, `วันที่บันทึก`, `วันที่แก้ไข`) on first run.
+> **Zero Manual Column or Tab Setup Required!**
+> You do **not** need to manually format or type column headers, nor create the `Logs` tab in advance. The application automatically detects blank sheets and writes the initial header row for `Assets` (`A1:J1`), and automatically creates the `Logs` tab with `A1:K1` headers on first run.
 
 ---
 
@@ -186,7 +230,7 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAAS
 
 ---
 
-## Step 7: Verify the Connection
+## Step 7: Verify Connection & Audit Trail
 
 1. Start the local development server:
 
@@ -198,7 +242,40 @@ npm run dev
 3. Observe the dashboard:
    - When configured, the blue "Demo Mode" banner disappears, and the status badge indicates that Google Sheets is connected.
    - Click **+ Add Record**, submit a record, and watch it appear in the dashboard.
-   - Switch to your Google Sheet in another tab: you will see the header row and the newly inserted record row immediately appear in real time!
+   - Switch to your Google Sheet in another tab:
+     - The primary sheet (`Assets`) contains the new record row.
+     - The `Logs` tab contains a corresponding `บันทึกรายการใหม่` audit entry!
+   - Edit an existing record's location or status: the `Logs` tab immediately records the change with `เดิม ➔ ใหม่` diff values.
+   - In the web dashboard, click the **ประวัติการทำรายการ** button in the header or the history icon in any row to inspect the timeline modal.
+
+### Audit Log API Endpoint (`/api/logs`)
+
+You can query the audit trail directly via the REST API:
+
+- **All logs:** `GET /api/logs`
+- **Filtered by asset code:** `GET /api/logs?assetCode=EQ-2026-001`
+
+Example response:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "log-67890abc-1234-5678-90ab-cdef12345678",
+      "timestamp": "2026-11-07T09:15:00.000Z",
+      "action": "แก้ไข/ย้ายตำแหน่ง",
+      "assetCode": "EQ-2026-001",
+      "name": "คอมพิวเตอร์ All-in-One Dell OptiPlex 7400",
+      "locationChange": "ฝ่าย IT ชั้น 4 ➔ กองบริหารทั่วไป ชั้น 2",
+      "responsibleChange": "นายสมเกียรติ ➔ นางสาวพัชรี",
+      "statusChange": "พร้อมใช้งาน ➔ กำลังใช้งาน",
+      "changeSummary": "ย้ายสถานที่, เปลี่ยนผู้รับผิดชอบ, เปลี่ยนสถานะ",
+      "recordedBy": "นางสาววิไลลักษณ์",
+      "notes": "ย้ายสถานที่ใช้งานชั่วคราว"
+    }
+  ]
+}
+```
 
 ---
 

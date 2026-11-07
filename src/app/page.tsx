@@ -228,6 +228,7 @@ export default function DashboardPage() {
   const handleOpenHistory = useCallback(
     async (asset?: AssetRecord) => {
       setHistoryTargetAsset(asset || null);
+      setHistoryLogs([]);
       setIsHistoryModalOpen(true);
       setIsLoadingLogs(true);
       try {
