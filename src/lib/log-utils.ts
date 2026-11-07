@@ -1,4 +1,162 @@
-import { AssetRecord, AssetLogRecord } from './types';
+import { AssetRecord, AssetLogRecord, AssetTransaction, LogAction } from './types';
+
+export function normalizeAssetCode(code: string | undefined | null): string {
+  return code ? code.trim().toLowerCase() : '';
+}
+
+/**
+ * Projects the latest state for each unique asset item from an append-only transaction ledger.
+ * - Groups transactions by case-insensitive, whitespace-trimmed assetCode.
+ * - Sorts chronologically by timestamp so the newest transaction reflects current state.
+ * - Computes `createdAt` as first seen timestamp, `updatedAt` as newest timestamp, and `transactionCount`.
+ * - Returns all projected items (including decommissioned ones) sorted by updatedAt descending.
+ */
+export function projectLatestAssets(transactions: AssetTransaction[]): AssetRecord[] {
+  if (!Array.isArray(transactions) || transactions.length === 0) {
+    return [];
+  }
+
+  const map = new Map<string, AssetTransaction>();
+  const countMap = new Map<string, number>();
+  const firstSeenMap = new Map<string, string>();
+
+  // Process transactions chronologically to trace first created and count
+  const sortedAsc = [...transactions].sort(
+    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
+
+  for (const tx of sortedAsc) {
+    const key = normalizeAssetCode(tx.assetCode);
+    if (!key) continue;
+
+    countMap.set(key, (countMap.get(key) || 0) + 1);
+    if (!firstSeenMap.has(key)) {
+      firstSeenMap.set(key, tx.timestamp);
+    }
+    map.set(key, tx);
+  }
+
+  // Convert to AssetRecord with createdAt (first seen) and updatedAt (latest timestamp)
+  return Array.from(map.values())
+    .map((latestTx) => {
+      const key = normalizeAssetCode(latestTx.assetCode);
+      return {
+        ...latestTx,
+        createdAt: firstSeenMap.get(key) || latestTx.timestamp,
+        updatedAt: latestTx.timestamp,
+        transactionCount: countMap.get(key) || 1,
+      };
+    })
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+}
+
+/**
+ * Converts a list of raw AssetTransactions into chronological diffed AssetLogRecords.
+ * Groups by assetCode, sorts chronologically, diffs adjacent entries, and returns
+ * reverse chronological list (newest first) for UI timeline consumption.
+ */
+export function computeTransactionDiffs(transactions: AssetTransaction[]): AssetLogRecord[] {
+  if (!Array.isArray(transactions) || transactions.length === 0) {
+    return [];
+  }
+
+  // Group by normalized assetCode
+  const groups = new Map<string, AssetTransaction[]>();
+  for (const tx of transactions) {
+    const key = normalizeAssetCode(tx.assetCode);
+    if (!key) continue;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key)!.push(tx);
+  }
+
+  const allLogs: AssetLogRecord[] = [];
+
+  for (const [, group] of groups) {
+    // Sort transactions chronologically ascending
+    const sorted = [...group].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
+    let prevTx: AssetTransaction | null = null;
+
+    for (const tx of sorted) {
+      if (!prevTx) {
+        // Initial transaction
+        allLogs.push({
+          id: tx.id,
+          timestamp: tx.timestamp,
+          action: tx.action as LogAction,
+          assetId: tx.id,
+          assetCode: tx.assetCode,
+          name: tx.name,
+          locationChange: tx.location || '-',
+          responsibleChange: tx.responsiblePerson || '-',
+          statusChange: tx.status || '-',
+          changeSummary:
+            tx.action === 'บันทึกรายการใหม่'
+              ? 'ลงทะเบียนครุภัณฑ์ใหม่'
+              : tx.action === 'จำหน่าย/ตัดบัญชี'
+                ? 'จำหน่าย/ตัดบัญชีออกจากระบบ'
+                : 'บันทึกรายการ',
+          recordedBy: tx.recordedBy || '',
+          notes: tx.notes || '',
+        });
+      } else {
+        const changes: string[] = [];
+
+        const locationChanged = tx.location !== prevTx.location;
+        if (locationChanged) changes.push('ย้ายสถานที่');
+
+        const responsibleChanged = tx.responsiblePerson !== prevTx.responsiblePerson;
+        if (responsibleChanged) changes.push('เปลี่ยนผู้รับผิดชอบ');
+
+        const statusChanged = tx.status !== prevTx.status;
+        if (statusChanged) changes.push('เปลี่ยนสถานะ');
+
+        const nameChanged = tx.name !== prevTx.name;
+        if (nameChanged) changes.push('แก้ไขชื่อ');
+
+        const notesChanged = tx.notes !== prevTx.notes;
+        if (notesChanged) changes.push('แก้ไขหมายเหตุ');
+
+        const summary =
+          tx.action === 'จำหน่าย/ตัดบัญชี'
+            ? 'จำหน่าย/ตัดบัญชีออกจากระบบ'
+            : changes.length > 0
+              ? changes.join(', ')
+              : 'แก้ไขข้อมูล';
+
+        allLogs.push({
+          id: tx.id,
+          timestamp: tx.timestamp,
+          action: tx.action as LogAction,
+          assetId: tx.id,
+          assetCode: tx.assetCode,
+          name: tx.name,
+          locationChange: locationChanged
+            ? `${prevTx.location || '-'} ➔ ${tx.location || '-'}`
+            : '-',
+          responsibleChange: responsibleChanged
+            ? `${prevTx.responsiblePerson || '-'} ➔ ${tx.responsiblePerson || '-'}`
+            : '-',
+          statusChange: statusChanged
+            ? `${prevTx.status || '-'} ➔ ${tx.status || '-'}`
+            : '-',
+          changeSummary: summary,
+          recordedBy: tx.recordedBy || '',
+          notes: tx.notes || '',
+        });
+      }
+
+      prevTx = tx;
+    }
+  }
+
+  // Return sorted by timestamp descending
+  return allLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+}
 
 /**
  * Computes difference between an existing AssetRecord and updated fields.

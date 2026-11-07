@@ -7,6 +7,21 @@ export const ASSET_STATUSES: AssetStatus[] = [
   'จำหน่าย/ตัดบัญชี',
 ];
 
+export type TransactionAction = 'บันทึกรายการใหม่' | 'แก้ไข/ย้ายตำแหน่ง' | 'จำหน่าย/ตัดบัญชี';
+
+export interface AssetTransaction {
+  id: string;
+  timestamp: string; // ISO 8601
+  action: TransactionAction;
+  assetCode: string;
+  name: string;
+  location: string;
+  status: AssetStatus;
+  responsiblePerson: string;
+  recordedBy: string;
+  notes: string;
+}
+
 export interface AssetRecord {
   id: string;
   assetCode: string;
@@ -18,6 +33,8 @@ export interface AssetRecord {
   notes: string;
   createdAt: string;
   updatedAt: string;
+  transactionCount?: number;
+  action?: TransactionAction;
 }
 
 export type CreateAssetInput = Omit<AssetRecord, 'id' | 'createdAt' | 'updatedAt'>;
@@ -27,7 +44,7 @@ export function isValidAssetStatus(status: unknown): status is AssetStatus {
   return typeof status === 'string' && (ASSET_STATUSES as readonly string[]).includes(status);
 }
 
-export type LogAction = 'บันทึกรายการใหม่' | 'แก้ไข/ย้ายตำแหน่ง' | 'ลบรายการ';
+export type LogAction = 'บันทึกรายการใหม่' | 'แก้ไข/ย้ายตำแหน่ง' | 'จำหน่าย/ตัดบัญชี' | 'ลบรายการ';
 
 export interface AssetLogRecord {
   id: string;

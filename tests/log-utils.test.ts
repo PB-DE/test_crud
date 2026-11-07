@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { computeAssetDiff } from '../src/lib/log-utils';
-import { AssetRecord, AssetLogRecord, LogAction } from '../src/lib/types';
+import { computeAssetDiff, projectLatestAssets, computeTransactionDiffs } from '../src/lib/log-utils';
+import { AssetRecord, AssetLogRecord, AssetTransaction } from '../src/lib/types';
 
 describe('computeAssetDiff', () => {
   const base: AssetRecord = {
@@ -124,5 +124,221 @@ describe('computeAssetDiff', () => {
     expect(diff?.changeSummary).toBe(
       'ย้ายสถานที่, เปลี่ยนผู้รับผิดชอบ, เปลี่ยนสถานะ, แก้ไขชื่อ, แก้ไขหมายเหตุ'
     );
+  });
+});
+
+describe('projectLatestAssets', () => {
+  it('projects single latest state for an asset with multiple transactions', () => {
+    const txs: AssetTransaction[] = [
+      {
+        id: '1',
+        timestamp: '2026-01-01T10:00:00Z',
+        action: 'บันทึกรายการใหม่',
+        assetCode: 'EQ-01',
+        name: 'Laptop Dell',
+        location: 'Room 101',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'Alice',
+        recordedBy: 'Admin',
+        notes: '',
+      },
+      {
+        id: '2',
+        timestamp: '2026-01-02T10:00:00Z',
+        action: 'แก้ไข/ย้ายตำแหน่ง',
+        assetCode: '  eq-01  ',
+        name: 'Laptop Dell',
+        location: 'Room 202',
+        status: 'กำลังใช้งาน',
+        responsiblePerson: 'Bob',
+        recordedBy: 'Admin',
+        notes: 'Moved',
+      },
+    ];
+
+    const projected = projectLatestAssets(txs);
+    expect(projected.length).toBe(1);
+    expect(projected[0].location).toBe('Room 202');
+    expect(projected[0].status).toBe('กำลังใช้งาน');
+    expect(projected[0].responsiblePerson).toBe('Bob');
+    expect(projected[0].createdAt).toBe('2026-01-01T10:00:00Z');
+    expect(projected[0].updatedAt).toBe('2026-01-02T10:00:00Z');
+    expect(projected[0].transactionCount).toBe(2);
+  });
+
+  it('handles empty or malformed transaction lists gracefully', () => {
+    expect(projectLatestAssets([])).toEqual([]);
+    // @ts-expect-error testing invalid input
+    expect(projectLatestAssets(null)).toEqual([]);
+  });
+
+  it('correctly handles out-of-order timestamps in transaction list', () => {
+    const txs: AssetTransaction[] = [
+      {
+        id: '2',
+        timestamp: '2026-01-05T12:00:00Z',
+        action: 'แก้ไข/ย้ายตำแหน่ง',
+        assetCode: 'EQ-02',
+        name: 'Projector',
+        location: 'Hall B',
+        status: 'กำลังใช้งาน',
+        responsiblePerson: 'Charlie',
+        recordedBy: 'Admin',
+        notes: '',
+      },
+      {
+        id: '1',
+        timestamp: '2026-01-01T09:00:00Z',
+        action: 'บันทึกรายการใหม่',
+        assetCode: 'EQ-02',
+        name: 'Projector',
+        location: 'Hall A',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'Charlie',
+        recordedBy: 'Admin',
+        notes: '',
+      },
+    ];
+
+    const projected = projectLatestAssets(txs);
+    expect(projected.length).toBe(1);
+    expect(projected[0].location).toBe('Hall B');
+    expect(projected[0].createdAt).toBe('2026-01-01T09:00:00Z');
+    expect(projected[0].updatedAt).toBe('2026-01-05T12:00:00Z');
+    expect(projected[0].transactionCount).toBe(2);
+  });
+
+  it('projects multiple distinct assets sorted by updatedAt descending', () => {
+    const txs: AssetTransaction[] = [
+      {
+        id: '1',
+        timestamp: '2026-01-01T10:00:00Z',
+        action: 'บันทึกรายการใหม่',
+        assetCode: 'EQ-01',
+        name: 'Laptop',
+        location: '101',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'Alice',
+        recordedBy: 'Admin',
+        notes: '',
+      },
+      {
+        id: '2',
+        timestamp: '2026-01-03T10:00:00Z',
+        action: 'บันทึกรายการใหม่',
+        assetCode: 'EQ-02',
+        name: 'Monitor',
+        location: '102',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'Bob',
+        recordedBy: 'Admin',
+        notes: '',
+      },
+    ];
+
+    const projected = projectLatestAssets(txs);
+    expect(projected.length).toBe(2);
+    expect(projected[0].assetCode).toBe('EQ-02');
+    expect(projected[1].assetCode).toBe('EQ-01');
+  });
+
+  it('preserves decommissioned status in projection', () => {
+    const txs: AssetTransaction[] = [
+      {
+        id: '1',
+        timestamp: '2026-01-01T10:00:00Z',
+        action: 'บันทึกรายการใหม่',
+        assetCode: 'EQ-RETIRE',
+        name: 'Old Printer',
+        location: 'Warehouse',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'Dan',
+        recordedBy: 'Admin',
+        notes: '',
+      },
+      {
+        id: '2',
+        timestamp: '2026-01-10T10:00:00Z',
+        action: 'จำหน่าย/ตัดบัญชี',
+        assetCode: 'EQ-RETIRE',
+        name: 'Old Printer',
+        location: 'Warehouse',
+        status: 'จำหน่าย/ตัดบัญชี',
+        responsiblePerson: 'Dan',
+        recordedBy: 'Admin',
+        notes: 'Disposed',
+      },
+    ];
+
+    const projected = projectLatestAssets(txs);
+    expect(projected.length).toBe(1);
+    expect(projected[0].status).toBe('จำหน่าย/ตัดบัญชี');
+    expect(projected[0].transactionCount).toBe(2);
+  });
+});
+
+describe('computeTransactionDiffs', () => {
+  it('converts transactions into chronologically diffed AssetLogRecords', () => {
+    const txs: AssetTransaction[] = [
+      {
+        id: '1',
+        timestamp: '2026-01-01T10:00:00Z',
+        action: 'บันทึกรายการใหม่',
+        assetCode: 'EQ-DIFF',
+        name: 'Server A',
+        location: 'Rack 1',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'Engineer 1',
+        recordedBy: 'Admin',
+        notes: 'Initial',
+      },
+      {
+        id: '2',
+        timestamp: '2026-01-02T10:00:00Z',
+        action: 'แก้ไข/ย้ายตำแหน่ง',
+        assetCode: 'EQ-DIFF',
+        name: 'Server A',
+        location: 'Rack 2',
+        status: 'กำลังใช้งาน',
+        responsiblePerson: 'Engineer 2',
+        recordedBy: 'Admin',
+        notes: 'Upgraded',
+      },
+      {
+        id: '3',
+        timestamp: '2026-01-03T10:00:00Z',
+        action: 'จำหน่าย/ตัดบัญชี',
+        assetCode: 'EQ-DIFF',
+        name: 'Server A',
+        location: 'Rack 2',
+        status: 'จำหน่าย/ตัดบัญชี',
+        responsiblePerson: 'Engineer 2',
+        recordedBy: 'Admin',
+        notes: 'Decommissioned',
+      },
+    ];
+
+    const logs = computeTransactionDiffs(txs);
+    // Returned in reverse chronological order (newest first) for UI timeline
+    expect(logs.length).toBe(3);
+    
+    // Newest: Decommission
+    expect(logs[0].id).toBe('3');
+    expect(logs[0].action).toBe('จำหน่าย/ตัดบัญชี');
+    expect(logs[0].statusChange).toBe('กำลังใช้งาน ➔ จำหน่าย/ตัดบัญชี');
+    expect(logs[0].notes).toBe('Decommissioned');
+
+    // Middle: Update/Move
+    expect(logs[1].id).toBe('2');
+    expect(logs[1].action).toBe('แก้ไข/ย้ายตำแหน่ง');
+    expect(logs[1].locationChange).toBe('Rack 1 ➔ Rack 2');
+    expect(logs[1].statusChange).toBe('พร้อมใช้งาน ➔ กำลังใช้งาน');
+    expect(logs[1].responsibleChange).toBe('Engineer 1 ➔ Engineer 2');
+
+    // Oldest: Initial creation
+    expect(logs[2].id).toBe('1');
+    expect(logs[2].action).toBe('บันทึกรายการใหม่');
+    expect(logs[2].locationChange).toBe('Rack 1');
+    expect(logs[2].statusChange).toBe('พร้อมใช้งาน');
   });
 });
