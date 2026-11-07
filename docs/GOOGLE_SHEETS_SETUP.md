@@ -156,7 +156,7 @@ By default, a new Google Sheet is private to your personal Google account. The S
 
 > [!NOTE]
 > **No Manual Column Setup Required!**
-> You do **not** need to manually format or type column headers in the new sheet. The application automatically detects blank sheets and writes the initial header row (`ID`, `Name`, `Email`, `Role`, `Status`, `Notes`, `Created At`, `Updated At`) on first run.
+> You do **not** need to manually format or type column headers in the new sheet. The application automatically detects blank sheets and writes the initial header row (`ID`, `รหัสครุภัณฑ์`, `ชื่อครุภัณฑ์`, `ตำแหน่งที่ตั้ง`, `สถานะ`, `ผู้รับผิดชอบ`, `ผู้บันทึก`, `หมายเหตุ`, `วันที่บันทึก`, `วันที่แก้ไข`) on first run.
 
 ---
 
