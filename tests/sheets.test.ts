@@ -400,6 +400,25 @@ describe('sheetsService (demo mode)', () => {
     expect(updated?.id).toBe(item.id);
     expect(updated?.location).toBe('Room B');
   });
+
+  it('updateRecord does not check collision if assetCode is unchanged', async () => {
+    const item = await sheetsService.createRecord({
+      assetCode: 'EQ-UNCHANGED',
+      name: 'Unchanged Item',
+      location: 'Room 101',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'User A',
+      recordedBy: 'Admin',
+    });
+
+    const updated = await sheetsService.updateRecord(item.id, {
+      assetCode: 'EQ-UNCHANGED',
+      location: 'Room 202',
+    });
+
+    expect(updated).not.toBeNull();
+    expect(updated?.location).toBe('Room 202');
+  });
 });
 
 describe('sheetsService (Google Sheets mode)', () => {

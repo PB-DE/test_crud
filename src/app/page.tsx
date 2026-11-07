@@ -172,7 +172,7 @@ export default function DashboardPage() {
         );
       } else {
         const msg = json.details
-          ? `${json.error}: ${json.details}`
+          ? (json.details.startsWith(json.error) ? json.details : `${json.error}: ${json.details}`)
           : json.error ||
             (isUpdate
               ? 'ไม่สามารถอัปเดตรายการครุภัณฑ์ได้'

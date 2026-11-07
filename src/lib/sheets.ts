@@ -213,6 +213,17 @@ async function ensureHeaderRow(sheets: sheets_v4.Sheets, spreadsheetId: string):
     return [HEADER_ROW];
   }
 
+  // Self-healing: if the existing header doesn't match HEADER_ROW, update it
+  if (values[0]?.[1] !== HEADER_ROW[1] || values[0].length < HEADER_ROW.length) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: 'A1:J1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [HEADER_ROW] },
+    });
+    values[0] = HEADER_ROW;
+  }
+
   return values;
 }
 
@@ -503,7 +514,10 @@ export const sheetsService = {
 
       oldRecord = demoStore[index];
 
-      if (sanitizedData.assetCode !== undefined) {
+      if (
+        sanitizedData.assetCode !== undefined &&
+        normalizeAssetCode(sanitizedData.assetCode) !== normalizeAssetCode(oldRecord.assetCode)
+      ) {
         const normalizedTarget = normalizeAssetCode(sanitizedData.assetCode);
         const collision = demoStore.find(
           (r) => r.id !== id && normalizeAssetCode(r.assetCode) === normalizedTarget
@@ -534,7 +548,10 @@ export const sheetsService = {
       const currentRow = values[rowIndex];
       oldRecord = rowToRecord(currentRow);
 
-      if (sanitizedData.assetCode !== undefined) {
+      if (
+        sanitizedData.assetCode !== undefined &&
+        normalizeAssetCode(sanitizedData.assetCode) !== normalizeAssetCode(oldRecord.assetCode)
+      ) {
         const normalizedTarget = normalizeAssetCode(sanitizedData.assetCode);
         const collisionRow = values.slice(1).find((row) => {
           const rowId = row?.[0];
