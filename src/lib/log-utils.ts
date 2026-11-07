@@ -39,6 +39,12 @@ export function computeAssetDiff(
     changes.push('เปลี่ยนสถานะ');
   }
 
+  const assetCodeChanged =
+    newRecord.assetCode !== undefined && newRecord.assetCode !== oldRecord.assetCode;
+  if (assetCodeChanged) {
+    changes.push('แก้ไขรหัสครุภัณฑ์');
+  }
+
   const nameChanged =
     newRecord.name !== undefined && newRecord.name !== oldRecord.name;
   if (nameChanged) {
