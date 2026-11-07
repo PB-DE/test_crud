@@ -325,6 +325,81 @@ describe('sheetsService (demo mode)', () => {
     const logsAfter = await sheetsService.getLogs();
     expect(logsAfter.length).toBe(0);
   });
+
+  it('createRecord updates existing record when assetCode matches case-insensitively', async () => {
+    const existing = await sheetsService.createRecord({
+      assetCode: 'EQ-UNIQUE-01',
+      name: 'Original Laptop',
+      location: 'Room 101',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'User A',
+      recordedBy: 'Admin',
+      notes: 'Initial',
+    });
+
+    const updated = await sheetsService.createRecord({
+      assetCode: '  eq-unique-01  ',
+      name: 'Original Laptop',
+      location: 'Room 202',
+      status: 'กำลังใช้งาน',
+      responsiblePerson: 'User B',
+      recordedBy: 'Admin',
+      notes: 'Moved',
+    });
+
+    expect(updated.id).toBe(existing.id);
+    expect(updated.location).toBe('Room 202');
+    expect(updated.responsiblePerson).toBe('User B');
+
+    const allRecords = await sheetsService.getRecords();
+    const matches = allRecords.filter(
+      (r) => r.assetCode.trim().toLowerCase() === 'eq-unique-01'
+    );
+    expect(matches.length).toBe(1);
+  });
+
+  it('updateRecord throws error if assetCode collides with another record', async () => {
+    const item1 = await sheetsService.createRecord({
+      assetCode: 'EQ-ALPHA',
+      name: 'Alpha',
+      location: 'A',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'User A',
+      recordedBy: 'Admin',
+    });
+    const item2 = await sheetsService.createRecord({
+      assetCode: 'EQ-BETA',
+      name: 'Beta',
+      location: 'B',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'User B',
+      recordedBy: 'Admin',
+    });
+
+    await expect(
+      sheetsService.updateRecord(item2.id, { assetCode: 'EQ-ALPHA' })
+    ).rejects.toThrow(/already exists/i);
+  });
+
+  it('updateRecord allows updating own assetCode with different casing or whitespace without error', async () => {
+    const item = await sheetsService.createRecord({
+      assetCode: 'EQ-SELF-01',
+      name: 'Self Item',
+      location: 'Room A',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'User A',
+      recordedBy: 'Admin',
+    });
+
+    const updated = await sheetsService.updateRecord(item.id, {
+      assetCode: '  eq-self-01  ',
+      location: 'Room B',
+    });
+
+    expect(updated).not.toBeNull();
+    expect(updated?.id).toBe(item.id);
+    expect(updated?.location).toBe('Room B');
+  });
 });
 
 describe('sheetsService (Google Sheets mode)', () => {
@@ -648,6 +723,61 @@ describe('sheetsService (Google Sheets mode)', () => {
     const success = await sheetsService.deleteRecord('rec-999');
     expect(success).toBe(false);
     expect(mockBatchUpdate).not.toHaveBeenCalled();
+  });
+
+  it('createRecord updates existing record when assetCode matches case-insensitively in Google Sheets mode', async () => {
+    const sheetData = {
+      data: {
+        values: [
+          HEADER_ROW,
+          [
+            'rec-existing-1',
+            'EQ-GS-01',
+            'เครื่องพิมพ์เดิม',
+            'ห้อง 1',
+            'พร้อมใช้งาน',
+            'นาย ก',
+            'Admin',
+            '',
+            '2026-01-01T00:00:00.000Z',
+            '2026-01-01T00:00:00.000Z',
+          ],
+        ],
+      },
+    };
+    mockValuesGet
+      .mockResolvedValueOnce(sheetData)
+      .mockResolvedValueOnce(sheetData);
+
+    const result = await sheetsService.createRecord({
+      assetCode: '  eq-gs-01  ',
+      name: 'เครื่องพิมพ์เดิม',
+      location: 'ห้อง 2',
+      status: 'กำลังใช้งาน',
+      responsiblePerson: 'นาย ข',
+      recordedBy: 'Admin 2',
+      notes: 'ย้ายแล้ว',
+    });
+
+    expect(result.id).toBe('rec-existing-1');
+    expect(result.location).toBe('ห้อง 2');
+    expect(mockValuesUpdate).toHaveBeenCalled();
+  });
+
+  it('updateRecord throws error if assetCode collides with another row in Google Sheets mode', async () => {
+    mockValuesGet.mockResolvedValueOnce({
+      data: {
+        values: [
+          HEADER_ROW,
+          ['rec-1', 'EQ-ONE', 'Item 1', 'Room 1', 'พร้อมใช้งาน', 'User 1', 'Admin', '', '2026-01-01', '2026-01-01'],
+          ['rec-2', 'EQ-TWO', 'Item 2', 'Room 2', 'พร้อมใช้งาน', 'User 2', 'Admin', '', '2026-01-01', '2026-01-01'],
+        ],
+      },
+    });
+
+    await expect(
+      sheetsService.updateRecord('rec-2', { assetCode: 'EQ-ONE' })
+    ).rejects.toThrow(/already exists/i);
   });
 
   describe('ensureLogsSheet and Google Sheets logging', () => {

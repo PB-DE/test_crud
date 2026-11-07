@@ -164,6 +164,21 @@ export async function PUT(
       data: updated,
     });
   } catch (error: any) {
+    if (
+      error?.code === 'COLLISION' ||
+      error?.name === 'AssetCollisionError' ||
+      /already exists/i.test(error?.message)
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Asset code already exists on another item',
+          details: error?.message,
+        },
+        { status: 409 }
+      );
+    }
+
     console.error('Failed to update record:', error);
     return NextResponse.json(
       {

@@ -95,6 +95,19 @@ const INITIAL_DEMO_RECORDS: AssetRecord[] = [
 let demoStore: AssetRecord[] = INITIAL_DEMO_RECORDS.map((r) => ({ ...r }));
 let demoLogsStore: AssetLogRecord[] = [];
 
+export class AssetCollisionError extends Error {
+  code = 'COLLISION';
+  constructor(message?: string) {
+    super(message || 'Asset code already exists on another item');
+    this.name = 'AssetCollisionError';
+    Object.setPrototypeOf(this, AssetCollisionError.prototype);
+  }
+}
+
+export function normalizeAssetCode(code: string | undefined | null): string {
+  return code ? code.trim().toLowerCase() : '';
+}
+
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -355,27 +368,89 @@ export const sheetsService = {
     });
   },
 
-  async createRecord(data: CreateAssetInput): Promise<AssetRecord> {
-    const now = new Date().toISOString();
-    const newRecord: AssetRecord = {
-      id: generateId(),
-      assetCode: data.assetCode,
-      name: data.name,
-      location: data.location,
-      status: data.status,
-      responsiblePerson: data.responsiblePerson,
-      recordedBy: data.recordedBy,
-      notes: data.notes || '',
-      createdAt: now,
-      updatedAt: now,
-    };
-
+  async createRecord(
+    data: Omit<CreateAssetInput, 'notes'> & { notes?: string }
+  ): Promise<AssetRecord> {
+    const normalizedCode = normalizeAssetCode(data.assetCode);
     const client = getSheetsClient();
+
     if (!client) {
+      const existing = demoStore.find(
+        (r) => normalizeAssetCode(r.assetCode) === normalizedCode
+      );
+      if (existing) {
+        const updated = await this.updateRecord(existing.id, {
+          ...data,
+          assetCode: data.assetCode.trim(),
+        });
+        return updated!;
+      }
+
+      const now = new Date().toISOString();
+      const newRecord: AssetRecord = {
+        id: generateId(),
+        assetCode: data.assetCode.trim(),
+        name: data.name,
+        location: data.location,
+        status: data.status,
+        responsiblePerson: data.responsiblePerson,
+        recordedBy: data.recordedBy,
+        notes: data.notes || '',
+        createdAt: now,
+        updatedAt: now,
+      };
       demoStore.push(newRecord);
+
+      const logRecord: AssetLogRecord = {
+        id: generateId(),
+        timestamp: now,
+        action: 'บันทึกรายการใหม่',
+        assetId: newRecord.id,
+        assetCode: newRecord.assetCode,
+        name: newRecord.name,
+        locationChange: `- ➔ ${newRecord.location}`,
+        responsibleChange: `- ➔ ${newRecord.responsiblePerson}`,
+        statusChange: `- ➔ ${newRecord.status}`,
+        changeSummary: 'บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ',
+        recordedBy: newRecord.recordedBy,
+        notes: newRecord.notes || '',
+      };
+
+      try {
+        await this.appendLog(logRecord);
+      } catch (logErr) {
+        console.error('Failed to append audit log for createRecord:', logErr);
+      }
+
+      return newRecord;
     } else {
       const { sheets, spreadsheetId } = client;
-      await ensureHeaderRow(sheets, spreadsheetId);
+      const values = await ensureHeaderRow(sheets, spreadsheetId);
+
+      const existingRow = values
+        .slice(1)
+        .find((row) => row && row[1] && normalizeAssetCode(row[1]) === normalizedCode);
+      if (existingRow && existingRow[0]) {
+        const updated = await this.updateRecord(existingRow[0], {
+          ...data,
+          assetCode: data.assetCode.trim(),
+        });
+        return updated!;
+      }
+
+      const now = new Date().toISOString();
+      const newRecord: AssetRecord = {
+        id: generateId(),
+        assetCode: data.assetCode.trim(),
+        name: data.name,
+        location: data.location,
+        status: data.status,
+        responsiblePerson: data.responsiblePerson,
+        recordedBy: data.recordedBy,
+        notes: data.notes || '',
+        createdAt: now,
+        updatedAt: now,
+      };
 
       await sheets.spreadsheets.values.append({
         spreadsheetId,
@@ -386,30 +461,30 @@ export const sheetsService = {
           values: [recordToRow(newRecord)],
         },
       });
+
+      const logRecord: AssetLogRecord = {
+        id: generateId(),
+        timestamp: now,
+        action: 'บันทึกรายการใหม่',
+        assetId: newRecord.id,
+        assetCode: newRecord.assetCode,
+        name: newRecord.name,
+        locationChange: `- ➔ ${newRecord.location}`,
+        responsibleChange: `- ➔ ${newRecord.responsiblePerson}`,
+        statusChange: `- ➔ ${newRecord.status}`,
+        changeSummary: 'บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ',
+        recordedBy: newRecord.recordedBy,
+        notes: newRecord.notes || '',
+      };
+
+      try {
+        await this.appendLog(logRecord);
+      } catch (logErr) {
+        console.error('Failed to append audit log for createRecord:', logErr);
+      }
+
+      return newRecord;
     }
-
-    const logRecord: AssetLogRecord = {
-      id: generateId(),
-      timestamp: now,
-      action: 'บันทึกรายการใหม่',
-      assetId: newRecord.id,
-      assetCode: newRecord.assetCode,
-      name: newRecord.name,
-      locationChange: `- ➔ ${newRecord.location}`,
-      responsibleChange: `- ➔ ${newRecord.responsiblePerson}`,
-      statusChange: `- ➔ ${newRecord.status}`,
-      changeSummary: 'บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ',
-      recordedBy: newRecord.recordedBy,
-      notes: newRecord.notes || '',
-    };
-
-    try {
-      await this.appendLog(logRecord);
-    } catch (logErr) {
-      console.error('Failed to append audit log for createRecord:', logErr);
-    }
-
-    return newRecord;
   },
 
   async updateRecord(id: string, data: UpdateAssetInput): Promise<AssetRecord | null> {
@@ -417,17 +492,35 @@ export const sheetsService = {
     let oldRecord: AssetRecord;
     let updatedRecord: AssetRecord;
 
+    const sanitizedData: UpdateAssetInput = {
+      ...data,
+      ...(data.assetCode !== undefined ? { assetCode: data.assetCode.trim() } : {}),
+    };
+
     if (!client) {
       const index = demoStore.findIndex((r) => r.id === id);
       if (index === -1) return null;
 
       oldRecord = demoStore[index];
+
+      if (sanitizedData.assetCode !== undefined) {
+        const normalizedTarget = normalizeAssetCode(sanitizedData.assetCode);
+        const collision = demoStore.find(
+          (r) => r.id !== id && normalizeAssetCode(r.assetCode) === normalizedTarget
+        );
+        if (collision) {
+          throw new AssetCollisionError(
+            `Asset code already exists on another item: ${sanitizedData.assetCode}`
+          );
+        }
+      }
+
       updatedRecord = {
         ...oldRecord,
-        ...data,
+        ...sanitizedData,
         id: oldRecord.id,
         createdAt: oldRecord.createdAt,
-        updatedAt: data.updatedAt ?? new Date().toISOString(),
+        updatedAt: sanitizedData.updatedAt ?? new Date().toISOString(),
       };
       demoStore[index] = updatedRecord;
     } else {
@@ -440,12 +533,27 @@ export const sheetsService = {
 
       const currentRow = values[rowIndex];
       oldRecord = rowToRecord(currentRow);
+
+      if (sanitizedData.assetCode !== undefined) {
+        const normalizedTarget = normalizeAssetCode(sanitizedData.assetCode);
+        const collisionRow = values.slice(1).find((row) => {
+          const rowId = row?.[0];
+          const rowCode = row?.[1];
+          return rowId !== id && rowCode && normalizeAssetCode(rowCode) === normalizedTarget;
+        });
+        if (collisionRow) {
+          throw new AssetCollisionError(
+            `Asset code already exists on another item: ${sanitizedData.assetCode}`
+          );
+        }
+      }
+
       updatedRecord = {
         ...oldRecord,
-        ...data,
+        ...sanitizedData,
         id: oldRecord.id,
         createdAt: oldRecord.createdAt,
-        updatedAt: data.updatedAt ?? new Date().toISOString(),
+        updatedAt: sanitizedData.updatedAt ?? new Date().toISOString(),
       };
 
       const sheetRowNum = rowIndex + 1;
@@ -461,9 +569,9 @@ export const sheetsService = {
 
     const diff = computeAssetDiff(
       oldRecord,
-      data,
-      data.recordedBy || updatedRecord.recordedBy || 'ระบบ',
-      data.notes
+      sanitizedData,
+      sanitizedData.recordedBy || updatedRecord.recordedBy || 'ระบบ',
+      sanitizedData.notes
     );
 
     if (diff) {

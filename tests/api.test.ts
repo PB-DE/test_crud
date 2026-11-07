@@ -277,6 +277,39 @@ describe('API Route Handlers', () => {
       expect(json.error).toBe('Failed to create record');
       expect(json.details).toBe('Google API Error');
     });
+
+    it('updates existing record when assetCode matches case-insensitively via POST', async () => {
+      const existing = await sheetsService.createRecord({
+        assetCode: 'EQ-POST-UPSERT',
+        name: 'Original Monitor',
+        location: 'Room 101',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'User A',
+        recordedBy: 'Admin',
+      });
+
+      const req = new Request('http://localhost:3000/api/records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: '  eq-post-upsert  ',
+          name: 'Original Monitor',
+          location: 'Room 202',
+          status: 'กำลังใช้งาน',
+          responsiblePerson: 'User B',
+          recordedBy: 'Admin',
+        }),
+      });
+
+      const res = await postRecord(req);
+      expect([200, 201]).toContain(res.status);
+
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.id).toBe(existing.id);
+      expect(json.data.location).toBe('Room 202');
+      expect(json.data.responsiblePerson).toBe('User B');
+    });
   });
 
   describe('GET /api/records/[id]', () => {
@@ -532,6 +565,73 @@ describe('API Route Handlers', () => {
       expect(json.success).toBe(false);
       expect(json.error).toBe('Failed to update record');
       expect(json.details).toBe('Network error');
+    });
+
+    it('returns 409 Conflict on assetCode collision during PUT', async () => {
+      const item1 = await sheetsService.createRecord({
+        assetCode: 'EQ-COLLIDE-A',
+        name: 'Item A',
+        location: 'Room A',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'Person A',
+        recordedBy: 'Admin',
+      });
+      const item2 = await sheetsService.createRecord({
+        assetCode: 'EQ-COLLIDE-B',
+        name: 'Item B',
+        location: 'Room B',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'Person B',
+        recordedBy: 'Admin',
+      });
+
+      const req = new Request(`http://localhost:3000/api/records/${item2.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: '  eq-collide-a  ',
+          location: 'Room C',
+        }),
+      });
+
+      const res = await putRecord(req, {
+        params: Promise.resolve({ id: item2.id }),
+      });
+
+      expect(res.status).toBe(409);
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toMatch(/already exists/i);
+    });
+
+    it('allows updating record when assetCode is unchanged or differs only in case/whitespace', async () => {
+      const item = await sheetsService.createRecord({
+        assetCode: 'EQ-SAME-01',
+        name: 'Same Item',
+        location: 'Room 1',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'Person 1',
+        recordedBy: 'Admin',
+      });
+
+      const req = new Request(`http://localhost:3000/api/records/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: '  eq-same-01  ',
+          location: 'Room 2',
+        }),
+      });
+
+      const res = await putRecord(req, {
+        params: Promise.resolve({ id: item.id }),
+      });
+
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.id).toBe(item.id);
+      expect(json.data.location).toBe('Room 2');
     });
   });
 
