@@ -5,6 +5,7 @@ import {
   PUT as putRecord,
   DELETE as deleteRecord,
 } from '../src/app/api/records/[id]/route';
+import { GET as getLogs } from '../src/app/api/logs/route';
 import { GET as getStatus } from '../src/app/api/status/route';
 import { sheetsService } from '../src/lib/sheets';
 import * as envModule from '../src/lib/env';
@@ -587,6 +588,156 @@ describe('API Route Handlers', () => {
       expect(json.success).toBe(false);
       expect(json.error).toBe('Failed to delete record');
       expect(json.details).toBe('Delete error');
+    });
+  });
+
+  describe('GET /api/logs', () => {
+    it('returns all logs with status 200', async () => {
+      // Create records to generate audit logs
+      const record1 = await sheetsService.createRecord({
+        assetCode: 'EQ-LOG-TEST-1',
+        name: 'ครุภัณฑ์ทดสอบ 1',
+        location: 'ห้อง 101',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'ผู้รับผิดชอบ 1',
+        recordedBy: 'ผู้บันทึก 1',
+        notes: 'หมายเหตุ 1',
+      });
+
+      const record2 = await sheetsService.createRecord({
+        assetCode: 'EQ-LOG-TEST-2',
+        name: 'ครุภัณฑ์ทดสอบ 2',
+        location: 'ห้อง 102',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'ผู้รับผิดชอบ 2',
+        recordedBy: 'ผู้บันทึก 2',
+        notes: 'หมายเหตุ 2',
+      });
+
+      const req = new Request('http://localhost:3000/api/logs', {
+        method: 'GET',
+      });
+
+      const res = await getLogs(req);
+      expect(res.status).toBe(200);
+
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(Array.isArray(json.data)).toBe(true);
+      expect(json.data.length).toBeGreaterThanOrEqual(2);
+
+      const codes = json.data.map((l: any) => l.assetCode);
+      expect(codes).toContain('EQ-LOG-TEST-1');
+      expect(codes).toContain('EQ-LOG-TEST-2');
+    });
+
+    it('filters logs by assetCode query parameter', async () => {
+      await sheetsService.createRecord({
+        assetCode: 'EQ-LOG-FILTER-CODE',
+        name: 'ครุภัณฑ์กรองรหัส',
+        location: 'ห้อง A',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'สมชาย',
+        recordedBy: 'สมหญิง',
+      });
+
+      await sheetsService.createRecord({
+        assetCode: 'EQ-LOG-OTHER-CODE',
+        name: 'ครุภัณฑ์อื่น',
+        location: 'ห้อง B',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'วิชัย',
+        recordedBy: 'สมหญิง',
+      });
+
+      const req = new Request(
+        'http://localhost:3000/api/logs?assetCode=EQ-LOG-FILTER-CODE',
+        { method: 'GET' }
+      );
+
+      const res = await getLogs(req);
+      expect(res.status).toBe(200);
+
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(Array.isArray(json.data)).toBe(true);
+      expect(json.data.length).toBeGreaterThan(0);
+      expect(json.data.every((l: any) => l.assetCode === 'EQ-LOG-FILTER-CODE')).toBe(true);
+    });
+
+    it('filters logs by assetId query parameter', async () => {
+      const created = await sheetsService.createRecord({
+        assetCode: 'EQ-LOG-FILTER-ID',
+        name: 'ครุภัณฑ์กรองไอดี',
+        location: 'ห้อง 501',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'สมชาย',
+        recordedBy: 'สมหญิง',
+      });
+
+      await sheetsService.createRecord({
+        assetCode: 'EQ-LOG-FILTER-ID-OTHER',
+        name: 'ครุภัณฑ์ไอดีอื่น',
+        location: 'ห้อง 502',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'วิชัย',
+        recordedBy: 'สมหญิง',
+      });
+
+      const req = new Request(
+        `http://localhost:3000/api/logs?assetId=${created.id}`,
+        { method: 'GET' }
+      );
+
+      const res = await getLogs(req);
+      expect(res.status).toBe(200);
+
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(Array.isArray(json.data)).toBe(true);
+      expect(json.data.length).toBeGreaterThan(0);
+      expect(json.data.every((l: any) => l.assetId === created.id || l.assetCode === created.assetCode)).toBe(true);
+    });
+
+    it('treats whitespace-only or empty query parameters as undefined', async () => {
+      await sheetsService.createRecord({
+        assetCode: 'EQ-LOG-TRIM-1',
+        name: 'ชิ้นที่ 1',
+        location: 'ห้อง 1',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'สมชาย',
+        recordedBy: 'สมหญิง',
+      });
+
+      const req = new Request(
+        'http://localhost:3000/api/logs?assetId=%20%20&assetCode=',
+        { method: 'GET' }
+      );
+
+      const res = await getLogs(req);
+      expect(res.status).toBe(200);
+
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.data.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('returns status 500 when fetching logs fails', async () => {
+      vi.spyOn(sheetsService, 'getLogs').mockRejectedValueOnce(
+        new Error('Google Sheets audit log error')
+      );
+
+      const req = new Request('http://localhost:3000/api/logs', {
+        method: 'GET',
+      });
+
+      const res = await getLogs(req);
+      expect(res.status).toBe(500);
+
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toBe('Failed to fetch logs');
+      expect(json.details).toBe('Google Sheets audit log error');
     });
   });
 

@@ -163,7 +163,7 @@ function logToRow(log: AssetLogRecord): string[] {
     log.statusChange,
     log.changeSummary,
     log.recordedBy,
-    log.notes,
+    log.notes ?? '',
   ];
 }
 
@@ -500,9 +500,12 @@ export const sheetsService = {
 
       deletedRecord = rowToRecord(values[rowIndex]);
 
-      // Get the first sheet's ID for deleteDimension
+      // Get the non-Logs sheet's ID for deleteDimension
       const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
-      const sheetId = spreadsheet.data.sheets?.[0]?.properties?.sheetId ?? 0;
+      const targetSheet = spreadsheet.data.sheets?.find(
+        (s) => s.properties?.title && s.properties.title !== 'Logs'
+      ) ?? spreadsheet.data.sheets?.[0];
+      const sheetId = targetSheet?.properties?.sheetId ?? 0;
 
       await sheets.spreadsheets.batchUpdate({
         spreadsheetId,
