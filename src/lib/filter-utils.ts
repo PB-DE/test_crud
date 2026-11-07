@@ -118,6 +118,14 @@ export function getActionBadgeStyle(action: LogAction | string): ActionBadgeStyl
         dot: 'bg-blue-500',
         label: 'แก้ไข/ย้ายตำแหน่ง',
       };
+    case 'จำหน่าย/ตัดบัญชี':
+      return {
+        bg: 'bg-rose-50',
+        text: 'text-rose-700',
+        border: 'border-rose-200/80',
+        dot: 'bg-rose-500',
+        label: 'จำหน่าย/ตัดบัญชี',
+      };
     case 'ลบรายการ':
       return {
         bg: 'bg-rose-50',

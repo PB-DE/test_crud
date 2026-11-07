@@ -58,6 +58,14 @@ describe('sheetsService (demo mode)', () => {
     sheetsService.resetDemoStore();
   });
 
+  it('derives timeline from demoTransactions so seed assets show full audit history', async () => {
+    sheetsService.resetDemoStore();
+    const logs = await sheetsService.getLogs({ assetCode: 'EQ-2026-003' });
+    expect(logs.length).toBe(2);
+    expect(logs[0].action).toBe('แก้ไข/ย้ายตำแหน่ง');
+    expect(logs[1].action).toBe('บันทึกรายการใหม่');
+  });
+
   it('createRecord, updateRecord, and deleteRecord append transactions without modifying existing rows', async () => {
     sheetsService.resetDemoStore();
 

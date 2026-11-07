@@ -275,6 +275,29 @@ describe('projectLatestAssets', () => {
     expect(projected[0].status).toBe('จำหน่าย/ตัดบัญชี');
     expect(projected[0].transactionCount).toBe(2);
   });
+
+  it('projects asset with 10 sequential updates with transactionCount: 10, createdAt from first, and updatedAt from 10th', () => {
+    const txs: AssetTransaction[] = Array.from({ length: 10 }, (_, i) => ({
+      id: `tx-${i + 1}`,
+      timestamp: `2026-01-${String(i + 1).padStart(2, '0')}T10:00:00Z`,
+      action: i === 0 ? 'บันทึกรายการใหม่' : 'แก้ไข/ย้ายตำแหน่ง',
+      assetCode: 'EQ-10-UPDATES',
+      name: 'Server Rack',
+      location: `Room ${100 + i}`,
+      status: 'กำลังใช้งาน',
+      responsiblePerson: `Engineer ${i}`,
+      recordedBy: 'Admin',
+      notes: `Update #${i}`,
+    }));
+
+    const projected = projectLatestAssets(txs);
+    expect(projected.length).toBe(1);
+    expect(projected[0].transactionCount).toBe(10);
+    expect(projected[0].createdAt).toBe('2026-01-01T10:00:00Z');
+    expect(projected[0].updatedAt).toBe('2026-01-10T10:00:00Z');
+    expect(projected[0].location).toBe('Room 109');
+    expect(projected[0].responsiblePerson).toBe('Engineer 9');
+  });
 });
 
 describe('computeTransactionDiffs', () => {

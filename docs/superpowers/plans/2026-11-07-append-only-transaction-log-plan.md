@@ -336,3 +336,4 @@ git add README.md
 git commit -m "docs: update README with Append-Only Transaction Log architecture and state projection"
 git push origin feat/asset-tracking-crud
 ```
+

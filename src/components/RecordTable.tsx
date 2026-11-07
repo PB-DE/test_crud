@@ -93,8 +93,8 @@ export function RecordTable({
         );
       case 'จำหน่าย/ตัดบัญชี':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200 whitespace-nowrap">
-            <span className="w-1.5 h-1.5 rounded-full bg-slate-400 mr-1.5 shrink-0" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200/80 whitespace-nowrap">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5 shrink-0" />
             จำหน่าย/ตัดบัญชี
           </span>
         );
@@ -448,9 +448,10 @@ export function RecordTable({
                       <button
                         type="button"
                         onClick={() => onDelete(record)}
-                        aria-label={`ลบ ${record.name} (${record.assetCode})`}
-                        title="ลบรายการครุภัณฑ์"
-                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                        disabled={record.status === 'จำหน่าย/ตัดบัญชี'}
+                        aria-label={`จำหน่าย/ตัดบัญชี ${record.name} (${record.assetCode})`}
+                        title={record.status === 'จำหน่าย/ตัดบัญชี' ? 'ครุภัณฑ์นี้จำหน่าย/ตัดบัญชีแล้ว' : 'จำหน่าย/ตัดบัญชีครุภัณฑ์'}
+                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

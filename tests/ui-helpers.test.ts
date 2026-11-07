@@ -388,6 +388,13 @@ describe('getActionBadgeStyle', () => {
     expect(style.text).toContain('rose');
   });
 
+  it('returns rose badge style for "จำหน่าย/ตัดบัญชี"', () => {
+    const style = getActionBadgeStyle('จำหน่าย/ตัดบัญชี');
+    expect(style.bg).toContain('rose');
+    expect(style.text).toContain('rose');
+    expect(style.label).toBe('จำหน่าย/ตัดบัญชี');
+  });
+
   it('returns neutral badge style for unknown action', () => {
     const style = getActionBadgeStyle('unknown');
     expect(style.bg).toContain('slate');

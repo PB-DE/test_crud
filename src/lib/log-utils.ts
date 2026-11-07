@@ -23,7 +23,7 @@ export function projectLatestAssets(transactions: AssetTransaction[]): AssetReco
 
   // Process transactions chronologically to trace first created and count
   const sortedAsc = [...transactions].sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    (a, b) => (new Date(a.timestamp).getTime() || 0) - (new Date(b.timestamp).getTime() || 0)
   );
 
   for (const tx of sortedAsc) {
@@ -50,7 +50,7 @@ export function projectLatestAssets(transactions: AssetTransaction[]): AssetReco
         transactionCount: countMap.get(key) || 1,
       };
     })
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    .sort((a, b) => (new Date(b.updatedAt).getTime() || 0) - (new Date(a.updatedAt).getTime() || 0));
 }
 
 /**
@@ -79,7 +79,7 @@ export function computeTransactionDiffs(transactions: AssetTransaction[]): Asset
   for (const [, group] of groups) {
     // Sort transactions chronologically ascending
     const sorted = [...group].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      (a, b) => (new Date(a.timestamp).getTime() || 0) - (new Date(b.timestamp).getTime() || 0)
     );
 
     let prevTx: AssetTransaction | null = null;
@@ -164,7 +164,7 @@ export function computeTransactionDiffs(transactions: AssetTransaction[]): Asset
   }
 
   // Return sorted by timestamp descending
-  return allLogs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return allLogs.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0));
 }
 
 /**

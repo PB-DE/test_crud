@@ -353,7 +353,31 @@ export const sheetsService = {
         const norm = normalizeAssetCode(filter.assetCode);
         logs = logs.filter((l) => normalizeAssetCode(l.assetCode) === norm);
       }
-      return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      // If matching session audit logs exist, return them
+      if (logs.length > 0) {
+        return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      }
+
+      // Fallback for seed demo items that don't have runtime demoLogsStore entries
+      if (filter?.assetId || filter?.assetCode) {
+        let targetCode = filter?.assetCode;
+        if (!targetCode && filter?.assetId) {
+          const records = await this.getRecords();
+          const match = records.find((r) => r.id === filter.assetId);
+          if (match) targetCode = match.assetCode;
+        }
+        if (targetCode) {
+          const norm = normalizeAssetCode(targetCode);
+          const filteredTxs = demoTransactions.filter((t) => normalizeAssetCode(t.assetCode) === norm);
+          const computed = computeTransactionDiffs(filteredTxs);
+          if (computed.length > 0) {
+            return computed;
+          }
+        }
+      }
+
+      return [];
     }
 
     // Google Sheets mode: check Logs sheet first for backward compatibility
