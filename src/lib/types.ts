@@ -1,21 +1,36 @@
-export const RECORD_STATUSES = ['Active', 'Pending', 'Inactive'] as const;
-export type RecordStatus = (typeof RECORD_STATUSES)[number];
+export type AssetStatus = 'พร้อมใช้งาน' | 'กำลังใช้งาน' | 'ส่งซ่อม' | 'จำหน่าย/ตัดบัญชี';
 
-export function isValidStatus(val: unknown): val is RecordStatus {
-  return typeof val === 'string' && (RECORD_STATUSES as readonly string[]).includes(val);
-}
+export const ASSET_STATUSES: AssetStatus[] = [
+  'พร้อมใช้งาน',
+  'กำลังใช้งาน',
+  'ส่งซ่อม',
+  'จำหน่าย/ตัดบัญชี',
+];
 
-export interface RecordItem {
+export interface AssetRecord {
   id: string;
+  assetCode: string;
   name: string;
-  email: string;
-  role: string;
-  status: RecordStatus;
+  location: string;
+  status: AssetStatus;
+  responsiblePerson: string;
+  recordedBy: string;
   notes: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export type CreateRecordInput = Omit<RecordItem, 'id' | 'createdAt' | 'updatedAt'>;
+export type CreateAssetInput = Omit<AssetRecord, 'id' | 'createdAt' | 'updatedAt'>;
+export type UpdateAssetInput = Partial<Omit<AssetRecord, 'id' | 'createdAt'>>;
 
-export type UpdateRecordInput = Partial<Omit<RecordItem, 'id' | 'createdAt'>>;
+export function isValidAssetStatus(status: unknown): status is AssetStatus {
+  return typeof status === 'string' && (ASSET_STATUSES as readonly string[]).includes(status);
+}
+
+// Backward-compatible aliases for downstream modules during transition:
+export type RecordItem = AssetRecord;
+export type CreateRecordInput = CreateAssetInput;
+export type UpdateRecordInput = UpdateAssetInput;
+export const isValidStatus = isValidAssetStatus;
+export const RECORD_STATUSES = ASSET_STATUSES;
+export type RecordStatus = AssetStatus;
