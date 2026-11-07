@@ -5,7 +5,10 @@ import {
   CreateAssetInput,
   UpdateAssetInput,
   isValidAssetStatus,
+  AssetLogRecord,
+  LogAction,
 } from './types';
+import { computeAssetDiff } from './log-utils';
 
 export const HEADER_ROW = [
   'ID',
@@ -21,6 +24,22 @@ export const HEADER_ROW = [
 ];
 
 export const RANGE_ALL = 'A:J';
+
+export const LOG_HEADER_ROW = [
+  'Log ID',
+  'วันเวลาที่ทำรายการ',
+  'การกระทำ',
+  'รหัสครุภัณฑ์',
+  'ชื่อครุภัณฑ์',
+  'ตำแหน่ง (เดิม ➔ ใหม่)',
+  'ผู้รับผิดชอบ (เดิม ➔ ใหม่)',
+  'สถานะ (เดิม ➔ ใหม่)',
+  'สรุปสิ่งที่เปลี่ยนแปลง',
+  'ผู้บันทึก',
+  'หมายเหตุ',
+];
+
+export const RANGE_LOGS_ALL = 'Logs!A:K';
 
 const INITIAL_DEMO_RECORDS: AssetRecord[] = [
   {
@@ -74,6 +93,7 @@ const INITIAL_DEMO_RECORDS: AssetRecord[] = [
 ];
 
 let demoStore: AssetRecord[] = INITIAL_DEMO_RECORDS.map((r) => ({ ...r }));
+let demoLogsStore: AssetLogRecord[] = [];
 
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -113,6 +133,40 @@ function recordToRow(record: AssetRecord): string[] {
   ];
 }
 
+function rowToLogRecord(row: string[], codeToIdMap?: Map<string, string>): AssetLogRecord {
+  const assetCode = row?.[3] ?? '';
+  return {
+    id: row?.[0] ?? '',
+    timestamp: row?.[1] ?? '',
+    action: (row?.[2] as LogAction) ?? 'บันทึกรายการใหม่',
+    assetCode,
+    name: row?.[4] ?? '',
+    locationChange: row?.[5] ?? '-',
+    responsibleChange: row?.[6] ?? '-',
+    statusChange: row?.[7] ?? '-',
+    changeSummary: row?.[8] ?? '',
+    recordedBy: row?.[9] ?? '',
+    notes: row?.[10] ?? '',
+    assetId: codeToIdMap?.get(assetCode) ?? '',
+  };
+}
+
+function logToRow(log: AssetLogRecord): string[] {
+  return [
+    log.id,
+    log.timestamp,
+    log.action,
+    log.assetCode,
+    log.name,
+    log.locationChange,
+    log.responsibleChange,
+    log.statusChange,
+    log.changeSummary,
+    log.recordedBy,
+    log.notes,
+  ];
+}
+
 function getSheetsClient() {
   const config = getEnvConfig();
   if (!config.isConfigured || !config.spreadsheetId || !config.clientEmail || !config.privateKey) {
@@ -149,9 +203,56 @@ async function ensureHeaderRow(sheets: sheets_v4.Sheets, spreadsheetId: string):
   return values;
 }
 
+export async function ensureLogsSheet(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string
+): Promise<string[][]> {
+  const metadata = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties.title',
+  });
+
+  const sheetTitles = metadata?.data?.sheets?.map((s) => s.properties?.title) ?? [];
+  if (!sheetTitles.includes('Logs')) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            addSheet: {
+              properties: {
+                title: 'Logs',
+              },
+            },
+          },
+        ],
+      },
+    });
+  }
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: 'Logs!A1:K1',
+  });
+
+  const values = res?.data?.values;
+  if (!values || values.length === 0 || !values[0] || values[0].length === 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: 'Logs!A1:K1',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [LOG_HEADER_ROW] },
+    });
+    return [LOG_HEADER_ROW];
+  }
+
+  return values;
+}
+
 export const sheetsService = {
   resetDemoStore(): void {
     demoStore = INITIAL_DEMO_RECORDS.map((r) => ({ ...r }));
+    demoLogsStore = [];
   },
 
   async getRecords(): Promise<AssetRecord[]> {
@@ -175,6 +276,85 @@ export const sheetsService = {
     return records.find((r) => r.id === id) ?? null;
   },
 
+  async getLogs(filter?: { assetId?: string; assetCode?: string }): Promise<AssetLogRecord[]> {
+    const client = getSheetsClient();
+    if (!client) {
+      let logs = [...demoLogsStore].reverse();
+      if (filter?.assetId) {
+        logs = logs.filter((l) => l.assetId === filter.assetId);
+      }
+      if (filter?.assetCode) {
+        logs = logs.filter((l) => l.assetCode === filter.assetCode);
+      }
+      return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }
+
+    const { sheets, spreadsheetId } = client;
+    await ensureLogsSheet(sheets, spreadsheetId);
+
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: RANGE_LOGS_ALL,
+    });
+
+    const values = res?.data?.values;
+    if (!values || values.length <= 1) {
+      return [];
+    }
+
+    let records: AssetRecord[] = [];
+    try {
+      records = await this.getRecords();
+    } catch {
+      // ignore
+    }
+    const codeToIdMap = new Map<string, string>();
+    for (const r of records) {
+      codeToIdMap.set(r.assetCode, r.id);
+    }
+
+    const dataRows = values.slice(1).reverse();
+    let logs = dataRows
+      .filter((row) => row && row[0] && row[0].trim().length > 0)
+      .map((row) => rowToLogRecord(row, codeToIdMap));
+
+    if (filter?.assetId) {
+      const targetAsset = records.find((r) => r.id === filter.assetId);
+      const targetCode = targetAsset?.assetCode;
+      logs = logs.filter(
+        (l) =>
+          (l.assetId && l.assetId === filter.assetId) ||
+          (targetCode && l.assetCode === targetCode)
+      );
+    }
+    if (filter?.assetCode) {
+      logs = logs.filter((l) => l.assetCode === filter.assetCode);
+    }
+
+    return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  },
+
+  async appendLog(log: AssetLogRecord): Promise<void> {
+    const client = getSheetsClient();
+    if (!client) {
+      demoLogsStore.push(log);
+      return;
+    }
+
+    const { sheets, spreadsheetId } = client;
+    await ensureLogsSheet(sheets, spreadsheetId);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: RANGE_LOGS_ALL,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: {
+        values: [logToRow(log)],
+      },
+    });
+  },
+
   async createRecord(data: CreateAssetInput): Promise<AssetRecord> {
     const now = new Date().toISOString();
     const newRecord: AssetRecord = {
@@ -193,109 +373,176 @@ export const sheetsService = {
     const client = getSheetsClient();
     if (!client) {
       demoStore.push(newRecord);
-      return newRecord;
+    } else {
+      const { sheets, spreadsheetId } = client;
+      await ensureHeaderRow(sheets, spreadsheetId);
+
+      await sheets.spreadsheets.values.append({
+        spreadsheetId,
+        range: RANGE_ALL,
+        valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: {
+          values: [recordToRow(newRecord)],
+        },
+      });
     }
 
-    const { sheets, spreadsheetId } = client;
-    await ensureHeaderRow(sheets, spreadsheetId);
+    const logRecord: AssetLogRecord = {
+      id: generateId(),
+      timestamp: now,
+      action: 'บันทึกรายการใหม่',
+      assetId: newRecord.id,
+      assetCode: newRecord.assetCode,
+      name: newRecord.name,
+      locationChange: `- ➔ ${newRecord.location}`,
+      responsibleChange: `- ➔ ${newRecord.responsiblePerson}`,
+      statusChange: `- ➔ ${newRecord.status}`,
+      changeSummary: 'บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ',
+      recordedBy: newRecord.recordedBy,
+      notes: newRecord.notes || '',
+    };
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range: RANGE_ALL,
-      valueInputOption: 'USER_ENTERED',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: {
-        values: [recordToRow(newRecord)],
-      },
-    });
+    try {
+      await this.appendLog(logRecord);
+    } catch (logErr) {
+      console.error('Failed to append audit log for createRecord:', logErr);
+    }
 
     return newRecord;
   },
 
   async updateRecord(id: string, data: UpdateAssetInput): Promise<AssetRecord | null> {
     const client = getSheetsClient();
+    let oldRecord: AssetRecord;
+    let updatedRecord: AssetRecord;
+
     if (!client) {
       const index = demoStore.findIndex((r) => r.id === id);
       if (index === -1) return null;
 
-      const current = demoStore[index];
-      const updated: AssetRecord = {
-        ...current,
+      oldRecord = demoStore[index];
+      updatedRecord = {
+        ...oldRecord,
         ...data,
-        id: current.id,
-        createdAt: current.createdAt,
+        id: oldRecord.id,
+        createdAt: oldRecord.createdAt,
         updatedAt: data.updatedAt ?? new Date().toISOString(),
       };
-      demoStore[index] = updated;
-      return updated;
+      demoStore[index] = updatedRecord;
+    } else {
+      const { sheets, spreadsheetId } = client;
+      const values = await ensureHeaderRow(sheets, spreadsheetId);
+
+      // Find row index (0 is header)
+      const rowIndex = values.findIndex((row, idx) => idx > 0 && row?.[0] === id);
+      if (rowIndex === -1) return null;
+
+      const currentRow = values[rowIndex];
+      oldRecord = rowToRecord(currentRow);
+      updatedRecord = {
+        ...oldRecord,
+        ...data,
+        id: oldRecord.id,
+        createdAt: oldRecord.createdAt,
+        updatedAt: data.updatedAt ?? new Date().toISOString(),
+      };
+
+      const sheetRowNum = rowIndex + 1;
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: `A${sheetRowNum}:J${sheetRowNum}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [recordToRow(updatedRecord)],
+        },
+      });
     }
 
-    const { sheets, spreadsheetId } = client;
-    const values = await ensureHeaderRow(sheets, spreadsheetId);
+    const diff = computeAssetDiff(
+      oldRecord,
+      data,
+      data.recordedBy || updatedRecord.recordedBy || 'ระบบ',
+      data.notes
+    );
 
-    // Find row index (0 is header)
-    const rowIndex = values.findIndex((row, idx) => idx > 0 && row?.[0] === id);
-    if (rowIndex === -1) return null;
-
-    const currentRow = values[rowIndex];
-    const currentRecord = rowToRecord(currentRow);
-    const updatedRecord: AssetRecord = {
-      ...currentRecord,
-      ...data,
-      id: currentRecord.id,
-      createdAt: currentRecord.createdAt,
-      updatedAt: data.updatedAt ?? new Date().toISOString(),
-    };
-
-    const sheetRowNum = rowIndex + 1;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `A${sheetRowNum}:J${sheetRowNum}`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [recordToRow(updatedRecord)],
-      },
-    });
+    if (diff) {
+      const logRecord: AssetLogRecord = {
+        id: generateId(),
+        timestamp: updatedRecord.updatedAt,
+        ...diff,
+      };
+      try {
+        await this.appendLog(logRecord);
+      } catch (logErr) {
+        console.error('Failed to append audit log for updateRecord:', logErr);
+      }
+    }
 
     return updatedRecord;
   },
 
   async deleteRecord(id: string): Promise<boolean> {
     const client = getSheetsClient();
+    let deletedRecord: AssetRecord;
+
     if (!client) {
       const index = demoStore.findIndex((r) => r.id === id);
       if (index === -1) return false;
+      deletedRecord = demoStore[index];
       demoStore.splice(index, 1);
-      return true;
-    }
+    } else {
+      const { sheets, spreadsheetId } = client;
+      const values = await ensureHeaderRow(sheets, spreadsheetId);
 
-    const { sheets, spreadsheetId } = client;
-    const values = await ensureHeaderRow(sheets, spreadsheetId);
+      const rowIndex = values.findIndex((row, idx) => idx > 0 && row?.[0] === id);
+      if (rowIndex === -1) return false;
 
-    const rowIndex = values.findIndex((row, idx) => idx > 0 && row?.[0] === id);
-    if (rowIndex === -1) return false;
+      deletedRecord = rowToRecord(values[rowIndex]);
 
-    // Get the first sheet's ID for deleteDimension
-    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
-    const sheetId = spreadsheet.data.sheets?.[0]?.properties?.sheetId ?? 0;
+      // Get the first sheet's ID for deleteDimension
+      const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
+      const sheetId = spreadsheet.data.sheets?.[0]?.properties?.sheetId ?? 0;
 
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        requests: [
-          {
-            deleteDimension: {
-              range: {
-                sheetId,
-                dimension: 'ROWS',
-                startIndex: rowIndex,
-                endIndex: rowIndex + 1,
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId,
+                  dimension: 'ROWS',
+                  startIndex: rowIndex,
+                  endIndex: rowIndex + 1,
+                },
               },
             },
-          },
-        ],
-      },
-    });
+          ],
+        },
+      });
+    }
+
+    const logRecord: AssetLogRecord = {
+      id: generateId(),
+      timestamp: new Date().toISOString(),
+      action: 'ลบรายการ',
+      assetId: deletedRecord.id,
+      assetCode: deletedRecord.assetCode,
+      name: deletedRecord.name,
+      locationChange: `${deletedRecord.location || '-'} ➔ -`,
+      responsibleChange: `${deletedRecord.responsiblePerson || '-'} ➔ -`,
+      statusChange: `${deletedRecord.status || '-'} ➔ -`,
+      changeSummary: 'ลบรายการครุภัณฑ์ออกจากระบบ',
+      recordedBy: deletedRecord.recordedBy || 'ระบบ',
+      notes: deletedRecord.notes || '',
+    };
+
+    try {
+      await this.appendLog(logRecord);
+    } catch (logErr) {
+      console.error('Failed to append audit log for deleteRecord:', logErr);
+    }
 
     return true;
   },

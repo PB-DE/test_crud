@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { sheetsService, HEADER_ROW, RANGE_ALL } from '../src/lib/sheets';
+import {
+  sheetsService,
+  HEADER_ROW,
+  RANGE_ALL,
+  LOG_HEADER_ROW,
+  RANGE_LOGS_ALL,
+  ensureLogsSheet,
+} from '../src/lib/sheets';
 import * as envModule from '../src/lib/env';
 import { google } from 'googleapis';
 
@@ -21,6 +28,28 @@ describe('HEADER_ROW and RANGE_ALL constants', () => {
 
   it('defines the correct column range A:J', () => {
     expect(RANGE_ALL).toBe('A:J');
+  });
+});
+
+describe('LOG_HEADER_ROW and RANGE_LOGS_ALL constants', () => {
+  it('defines the correct 11 Thai column headers for change logs', () => {
+    expect(LOG_HEADER_ROW).toEqual([
+      'Log ID',
+      'วันเวลาที่ทำรายการ',
+      'การกระทำ',
+      'รหัสครุภัณฑ์',
+      'ชื่อครุภัณฑ์',
+      'ตำแหน่ง (เดิม ➔ ใหม่)',
+      'ผู้รับผิดชอบ (เดิม ➔ ใหม่)',
+      'สถานะ (เดิม ➔ ใหม่)',
+      'สรุปสิ่งที่เปลี่ยนแปลง',
+      'ผู้บันทึก',
+      'หมายเหตุ',
+    ]);
+  });
+
+  it('defines the correct column range Logs!A:K', () => {
+    expect(RANGE_LOGS_ALL).toBe('Logs!A:K');
   });
 });
 
@@ -139,6 +168,163 @@ describe('sheetsService (demo mode)', () => {
     const resetRecords = await sheetsService.getRecords();
     expect(resetRecords.length).toBe(initialCount);
   });
+
+  it('automatically appends an audit log when a record is created', async () => {
+    const created = await sheetsService.createRecord({
+      assetCode: 'EQ-LOG-001',
+      name: 'เครื่องเซิร์ฟเวอร์ Dell PowerEdge',
+      location: 'ห้อง IDC',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'วิศวกร ระบบ',
+      recordedBy: 'ผู้ดูแล แอดมิน',
+      notes: 'เครื่องใหม่แกะกล่อง',
+    });
+
+    const logs = await sheetsService.getLogs();
+    expect(logs.length).toBeGreaterThan(0);
+    const log = logs[0];
+    expect(log.action).toBe('บันทึกรายการใหม่');
+    expect(log.assetId).toBe(created.id);
+    expect(log.assetCode).toBe('EQ-LOG-001');
+    expect(log.name).toBe('เครื่องเซิร์ฟเวอร์ Dell PowerEdge');
+    expect(log.locationChange).toBe('- ➔ ห้อง IDC');
+    expect(log.responsibleChange).toBe('- ➔ วิศวกร ระบบ');
+    expect(log.statusChange).toBe('- ➔ พร้อมใช้งาน');
+    expect(log.changeSummary).toBe('บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ');
+    expect(log.recordedBy).toBe('ผู้ดูแล แอดมิน');
+    expect(log.notes).toBe('เครื่องใหม่แกะกล่อง');
+  });
+
+  it('automatically appends an audit log when a record is updated with changes', async () => {
+    const created = await sheetsService.createRecord({
+      assetCode: 'EQ-LOG-002',
+      name: 'เก้าอี้เพื่อสุขภาพ',
+      location: 'ห้องทำงาน 1',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'เจ้าหน้าที่ ก',
+      recordedBy: 'เจ้าหน้าที่ ข',
+      notes: '',
+    });
+
+    const updated = await sheetsService.updateRecord(created.id, {
+      location: 'ห้องทำงาน 2',
+      responsiblePerson: 'เจ้าหน้าที่ ค',
+      recordedBy: 'เจ้าหน้าที่ ง',
+      notes: 'ย้ายโต๊ะทำงาน',
+    });
+
+    expect(updated).not.toBeNull();
+    const logs = await sheetsService.getLogs({ assetId: created.id });
+    expect(logs.length).toBe(2);
+    // Newest log should be update
+    const updateLog = logs[0];
+    expect(updateLog.action).toBe('แก้ไข/ย้ายตำแหน่ง');
+    expect(updateLog.locationChange).toBe('ห้องทำงาน 1 ➔ ห้องทำงาน 2');
+    expect(updateLog.responsibleChange).toBe('เจ้าหน้าที่ ก ➔ เจ้าหน้าที่ ค');
+    expect(updateLog.statusChange).toBe('-');
+    expect(updateLog.changeSummary).toContain('ย้ายสถานที่');
+    expect(updateLog.changeSummary).toContain('เปลี่ยนผู้รับผิดชอบ');
+    expect(updateLog.recordedBy).toBe('เจ้าหน้าที่ ง');
+    expect(updateLog.notes).toBe('ย้ายโต๊ะทำงาน');
+  });
+
+  it('does not append a log when updateRecord is called without changes', async () => {
+    const created = await sheetsService.createRecord({
+      assetCode: 'EQ-LOG-003',
+      name: 'โปรเจคเตอร์',
+      location: 'ห้องประชุม',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'เจ้าหน้าที่ ก',
+      recordedBy: 'เจ้าหน้าที่ ข',
+      notes: '',
+    });
+
+    const logsBefore = await sheetsService.getLogs({ assetId: created.id });
+    expect(logsBefore.length).toBe(1);
+
+    await sheetsService.updateRecord(created.id, {
+      location: 'ห้องประชุม',
+      status: 'พร้อมใช้งาน',
+    });
+
+    const logsAfter = await sheetsService.getLogs({ assetId: created.id });
+    expect(logsAfter.length).toBe(1);
+  });
+
+  it('automatically appends an audit log when a record is deleted', async () => {
+    const created = await sheetsService.createRecord({
+      assetCode: 'EQ-LOG-004',
+      name: 'โน้ตบุ๊ก ThinkPad',
+      location: 'ฝ่ายขาย',
+      status: 'จำหน่าย/ตัดบัญชี',
+      responsiblePerson: 'เซลส์แมน',
+      recordedBy: 'ไอที ซัพพอร์ต',
+      notes: 'เครื่องเสียซ่อมไม่คุ้ม',
+    });
+
+    const success = await sheetsService.deleteRecord(created.id);
+    expect(success).toBe(true);
+
+    const logs = await sheetsService.getLogs({ assetId: created.id });
+    expect(logs.length).toBe(2);
+    const deleteLog = logs[0];
+    expect(deleteLog.action).toBe('ลบรายการ');
+    expect(deleteLog.assetCode).toBe('EQ-LOG-004');
+    expect(deleteLog.name).toBe('โน้ตบุ๊ก ThinkPad');
+    expect(deleteLog.locationChange).toBe('ฝ่ายขาย ➔ -');
+    expect(deleteLog.responsibleChange).toBe('เซลส์แมน ➔ -');
+    expect(deleteLog.statusChange).toBe('จำหน่าย/ตัดบัญชี ➔ -');
+    expect(deleteLog.changeSummary).toBe('ลบรายการครุภัณฑ์ออกจากระบบ');
+  });
+
+  it('filters logs by assetId and assetCode and sorts newest first', async () => {
+    const item1 = await sheetsService.createRecord({
+      assetCode: 'EQ-FILT-1',
+      name: 'Item 1',
+      location: 'Loc 1',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'Resp 1',
+      recordedBy: 'User 1',
+      notes: '',
+    });
+
+    const item2 = await sheetsService.createRecord({
+      assetCode: 'EQ-FILT-2',
+      name: 'Item 2',
+      location: 'Loc 2',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'Resp 2',
+      recordedBy: 'User 2',
+      notes: '',
+    });
+
+    const logsItem1 = await sheetsService.getLogs({ assetId: item1.id });
+    expect(logsItem1.length).toBeGreaterThan(0);
+    expect(logsItem1.every((l) => l.assetId === item1.id)).toBe(true);
+
+    const logsItem2 = await sheetsService.getLogs({ assetCode: 'EQ-FILT-2' });
+    expect(logsItem2.length).toBeGreaterThan(0);
+    expect(logsItem2.every((l) => l.assetCode === 'EQ-FILT-2')).toBe(true);
+  });
+
+  it('resets demo logs store when resetDemoStore is called', async () => {
+    await sheetsService.createRecord({
+      assetCode: 'EQ-RESET-01',
+      name: 'Item',
+      location: 'Loc',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'Resp',
+      recordedBy: 'User',
+      notes: '',
+    });
+
+    const logsBefore = await sheetsService.getLogs();
+    expect(logsBefore.length).toBeGreaterThan(0);
+
+    sheetsService.resetDemoStore();
+    const logsAfter = await sheetsService.getLogs();
+    expect(logsAfter.length).toBe(0);
+  });
 });
 
 describe('sheetsService (Google Sheets mode)', () => {
@@ -156,12 +342,20 @@ describe('sheetsService (Google Sheets mode)', () => {
       isConfigured: true,
     });
 
-    mockValuesGet = vi.fn();
+    mockValuesGet = vi.fn().mockImplementation(({ range }: { range?: string }) => {
+      if (range && range.includes('Logs')) {
+        return Promise.resolve({ data: { values: [LOG_HEADER_ROW] } });
+      }
+      return Promise.resolve({ data: { values: [HEADER_ROW] } });
+    });
     mockValuesUpdate = vi.fn().mockResolvedValue({});
     mockValuesAppend = vi.fn().mockResolvedValue({});
     mockSpreadsheetsGet = vi.fn().mockResolvedValue({
       data: {
-        sheets: [{ properties: { sheetId: 12345 } }],
+        sheets: [
+          { properties: { sheetId: 12345, title: 'Assets' } },
+          { properties: { sheetId: 67890, title: 'Logs' } },
+        ],
       },
     });
     mockBatchUpdate = vi.fn().mockResolvedValue({});
@@ -298,7 +492,7 @@ describe('sheetsService (Google Sheets mode)', () => {
     expect(created.id).toBeDefined();
     expect(created.assetCode).toBe('EQ-2026-005');
     expect(created.name).toBe('เครื่องสำรองไฟ APC 1000VA');
-    expect(mockValuesAppend).toHaveBeenCalledTimes(1);
+    expect(mockValuesAppend).toHaveBeenCalledTimes(2);
 
     const callArgs = mockValuesAppend.mock.calls[0][0];
     expect(callArgs.spreadsheetId).toBe('test-sheet-id');
@@ -315,6 +509,13 @@ describe('sheetsService (Google Sheets mode)', () => {
     expect(rowValues[7]).toBe('ติดตั้งแล้ว');
     expect(rowValues[8]).toBe(created.createdAt);
     expect(rowValues[9]).toBe(created.updatedAt);
+
+    const logCallArgs = mockValuesAppend.mock.calls[1][0];
+    expect(logCallArgs.spreadsheetId).toBe('test-sheet-id');
+    expect(logCallArgs.range).toBe(RANGE_LOGS_ALL);
+    const logRowValues = logCallArgs.requestBody.values[0];
+    expect(logRowValues[2]).toBe('บันทึกรายการใหม่');
+    expect(logRowValues[3]).toBe('EQ-2026-005');
   });
 
   it('updates an existing row by looking up unique id', async () => {
@@ -447,5 +648,180 @@ describe('sheetsService (Google Sheets mode)', () => {
     const success = await sheetsService.deleteRecord('rec-999');
     expect(success).toBe(false);
     expect(mockBatchUpdate).not.toHaveBeenCalled();
+  });
+
+  describe('ensureLogsSheet and Google Sheets logging', () => {
+    it('creates Logs tab and writes header when Logs tab is missing', async () => {
+      mockSpreadsheetsGet.mockResolvedValueOnce({
+        data: {
+          sheets: [{ properties: { sheetId: 1, title: 'Sheet1' } }],
+        },
+      });
+      mockValuesGet.mockResolvedValueOnce({
+        data: { values: [] },
+      });
+
+      const sheets = google.sheets({ version: 'v4' });
+      await ensureLogsSheet(sheets, 'test-sheet-id');
+
+      expect(mockBatchUpdate).toHaveBeenCalledWith({
+        spreadsheetId: 'test-sheet-id',
+        requestBody: {
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  title: 'Logs',
+                },
+              },
+            },
+          ],
+        },
+      });
+
+      expect(mockValuesUpdate).toHaveBeenCalledWith({
+        spreadsheetId: 'test-sheet-id',
+        range: 'Logs!A1:K1',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [LOG_HEADER_ROW] },
+      });
+    });
+
+    it('skips addSheet when Logs tab already exists', async () => {
+      mockSpreadsheetsGet.mockResolvedValueOnce({
+        data: {
+          sheets: [
+            { properties: { sheetId: 1, title: 'Sheet1' } },
+            { properties: { sheetId: 2, title: 'Logs' } },
+          ],
+        },
+      });
+      mockValuesGet.mockResolvedValueOnce({
+        data: { values: [LOG_HEADER_ROW] },
+      });
+
+      const sheets = google.sheets({ version: 'v4' });
+      await ensureLogsSheet(sheets, 'test-sheet-id');
+
+      expect(mockBatchUpdate).not.toHaveBeenCalled();
+      expect(mockValuesUpdate).not.toHaveBeenCalled();
+    });
+
+    it('appends an audit log to Logs!A:K via appendLog', async () => {
+      mockSpreadsheetsGet.mockResolvedValueOnce({
+        data: {
+          sheets: [{ properties: { sheetId: 2, title: 'Logs' } }],
+        },
+      });
+      mockValuesGet.mockResolvedValueOnce({
+        data: { values: [LOG_HEADER_ROW] },
+      });
+
+      await sheetsService.appendLog({
+        id: 'log-test-1',
+        timestamp: '2026-03-01T10:00:00.000Z',
+        action: 'แก้ไข/ย้ายตำแหน่ง',
+        assetId: 'rec-1',
+        assetCode: 'EQ-2026-001',
+        name: 'Dell OptiPlex',
+        locationChange: 'ห้อง 1 ➔ ห้อง 2',
+        responsibleChange: '-',
+        statusChange: '-',
+        changeSummary: 'ย้ายสถานที่',
+        recordedBy: 'จนท. ตรวจสอบ',
+        notes: 'ย้ายชั่วคราว',
+      });
+
+      expect(mockValuesAppend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          spreadsheetId: 'test-sheet-id',
+          range: RANGE_LOGS_ALL,
+          valueInputOption: 'USER_ENTERED',
+          insertDataOption: 'INSERT_ROWS',
+          requestBody: {
+            values: [
+              [
+                'log-test-1',
+                '2026-03-01T10:00:00.000Z',
+                'แก้ไข/ย้ายตำแหน่ง',
+                'EQ-2026-001',
+                'Dell OptiPlex',
+                'ห้อง 1 ➔ ห้อง 2',
+                '-',
+                '-',
+                'ย้ายสถานที่',
+                'จนท. ตรวจสอบ',
+                'ย้ายชั่วคราว',
+              ],
+            ],
+          },
+        })
+      );
+    });
+
+    it('retrieves and parses logs from Google Sheets in getLogs with filtering and newest-first order', async () => {
+      mockSpreadsheetsGet.mockResolvedValueOnce({
+        data: {
+          sheets: [{ properties: { sheetId: 2, title: 'Logs' } }],
+        },
+      });
+      mockValuesGet
+        .mockResolvedValueOnce({
+          data: { values: [LOG_HEADER_ROW] }, // Logs!A1:K1 inside ensureLogsSheet
+        })
+        .mockResolvedValueOnce({
+          data: {
+            values: [
+              LOG_HEADER_ROW,
+              [
+                'log-1',
+                '2026-01-01T10:00:00.000Z',
+                'บันทึกรายการใหม่',
+                'EQ-001',
+                'Dell PC',
+                '- ➔ ห้อง 101',
+                '- ➔ สมชาย',
+                '- ➔ พร้อมใช้งาน',
+                'บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ',
+                'สมหญิง',
+                '',
+              ],
+              [
+                'log-2',
+                '2026-01-02T10:00:00.000Z',
+                'แก้ไข/ย้ายตำแหน่ง',
+                'EQ-001',
+                'Dell PC',
+                'ห้อง 101 ➔ ห้อง 102',
+                '-',
+                '-',
+                'ย้ายสถานที่',
+                'สมชาย',
+                'ย้ายห้องทำงาน',
+              ],
+              [
+                'log-3',
+                '2026-01-03T10:00:00.000Z',
+                'บันทึกรายการใหม่',
+                'EQ-002',
+                'HP Printer',
+                '- ➔ ห้อง 201',
+                '- ➔ สมพงษ์',
+                '- ➔ พร้อมใช้งาน',
+                'บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ',
+                'สมหญิง',
+                '',
+              ],
+            ],
+          },
+        });
+
+      const logs = await sheetsService.getLogs({ assetCode: 'EQ-001' });
+      expect(logs.length).toBe(2);
+      expect(logs[0].id).toBe('log-2'); // newest first
+      expect(logs[1].id).toBe('log-1');
+      expect(logs[0].assetCode).toBe('EQ-001');
+      expect(logs[1].assetCode).toBe('EQ-001');
+    });
   });
 });
