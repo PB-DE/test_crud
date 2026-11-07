@@ -19,6 +19,7 @@ export function projectLatestAssets(transactions: AssetTransaction[]): AssetReco
   const map = new Map<string, AssetTransaction>();
   const countMap = new Map<string, number>();
   const firstSeenMap = new Map<string, string>();
+  const firstIdMap = new Map<string, string>();
 
   // Process transactions chronologically to trace first created and count
   const sortedAsc = [...transactions].sort(
@@ -32,16 +33,18 @@ export function projectLatestAssets(transactions: AssetTransaction[]): AssetReco
     countMap.set(key, (countMap.get(key) || 0) + 1);
     if (!firstSeenMap.has(key)) {
       firstSeenMap.set(key, tx.timestamp);
+      firstIdMap.set(key, tx.id);
     }
     map.set(key, tx);
   }
 
-  // Convert to AssetRecord with createdAt (first seen) and updatedAt (latest timestamp)
+  // Convert to AssetRecord with stable id (first seen id), createdAt (first seen) and updatedAt (latest timestamp)
   return Array.from(map.values())
     .map((latestTx) => {
       const key = normalizeAssetCode(latestTx.assetCode);
       return {
         ...latestTx,
+        id: firstIdMap.get(key) || latestTx.id,
         createdAt: firstSeenMap.get(key) || latestTx.timestamp,
         updatedAt: latestTx.timestamp,
         transactionCount: countMap.get(key) || 1,
@@ -91,12 +94,12 @@ export function computeTransactionDiffs(transactions: AssetTransaction[]): Asset
           assetId: tx.id,
           assetCode: tx.assetCode,
           name: tx.name,
-          locationChange: tx.location || '-',
-          responsibleChange: tx.responsiblePerson || '-',
-          statusChange: tx.status || '-',
+          locationChange: tx.location ? `- ➔ ${tx.location}` : '-',
+          responsibleChange: tx.responsiblePerson ? `- ➔ ${tx.responsiblePerson}` : '-',
+          statusChange: tx.status ? `- ➔ ${tx.status}` : '-',
           changeSummary:
             tx.action === 'บันทึกรายการใหม่'
-              ? 'ลงทะเบียนครุภัณฑ์ใหม่'
+              ? 'บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ'
               : tx.action === 'จำหน่าย/ตัดบัญชี'
                 ? 'จำหน่าย/ตัดบัญชีออกจากระบบ'
                 : 'บันทึกรายการ',
@@ -121,12 +124,12 @@ export function computeTransactionDiffs(transactions: AssetTransaction[]): Asset
         const notesChanged = tx.notes !== prevTx.notes;
         if (notesChanged) changes.push('แก้ไขหมายเหตุ');
 
-        const summary =
-          tx.action === 'จำหน่าย/ตัดบัญชี'
-            ? 'จำหน่าย/ตัดบัญชีออกจากระบบ'
-            : changes.length > 0
-              ? changes.join(', ')
-              : 'แก้ไขข้อมูล';
+        const isDecommission = tx.action === 'จำหน่าย/ตัดบัญชี';
+        const summary = isDecommission
+          ? 'ลบรายการครุภัณฑ์ออกจากระบบ'
+          : changes.length > 0
+            ? changes.join(', ')
+            : 'แก้ไขข้อมูล';
 
         allLogs.push({
           id: tx.id,
@@ -135,15 +138,21 @@ export function computeTransactionDiffs(transactions: AssetTransaction[]): Asset
           assetId: tx.id,
           assetCode: tx.assetCode,
           name: tx.name,
-          locationChange: locationChanged
-            ? `${prevTx.location || '-'} ➔ ${tx.location || '-'}`
-            : '-',
-          responsibleChange: responsibleChanged
-            ? `${prevTx.responsiblePerson || '-'} ➔ ${tx.responsiblePerson || '-'}`
-            : '-',
+          locationChange: isDecommission
+            ? `${prevTx.location || '-'} ➔ -`
+            : locationChanged
+              ? `${prevTx.location || '-'} ➔ ${tx.location || '-'}`
+              : '-',
+          responsibleChange: isDecommission
+            ? `${prevTx.responsiblePerson || '-'} ➔ -`
+            : responsibleChanged
+              ? `${prevTx.responsiblePerson || '-'} ➔ ${tx.responsiblePerson || '-'}`
+              : '-',
           statusChange: statusChanged
             ? `${prevTx.status || '-'} ➔ ${tx.status || '-'}`
-            : '-',
+            : isDecommission
+              ? `${prevTx.status || '-'} ➔ จำหน่าย/ตัดบัญชี`
+              : '-',
           changeSummary: summary,
           recordedBy: tx.recordedBy || '',
           notes: tx.notes || '',

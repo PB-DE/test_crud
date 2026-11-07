@@ -338,7 +338,7 @@ describe('computeTransactionDiffs', () => {
     // Oldest: Initial creation
     expect(logs[2].id).toBe('1');
     expect(logs[2].action).toBe('บันทึกรายการใหม่');
-    expect(logs[2].locationChange).toBe('Rack 1');
-    expect(logs[2].statusChange).toBe('พร้อมใช้งาน');
+    expect(logs[2].locationChange).toBe('- ➔ Rack 1');
+    expect(logs[2].statusChange).toBe('- ➔ พร้อมใช้งาน');
   });
 });

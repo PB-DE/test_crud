@@ -7,11 +7,22 @@ import {
   isValidAssetStatus,
   AssetLogRecord,
   LogAction,
+  AssetTransaction,
+  TransactionAction,
 } from './types';
-import { computeAssetDiff } from './log-utils';
+import {
+  computeAssetDiff,
+  normalizeAssetCode,
+  projectLatestAssets,
+  computeTransactionDiffs,
+} from './log-utils';
+
+export { normalizeAssetCode } from './log-utils';
 
 export const HEADER_ROW = [
   'ID',
+  'วันเวลาที่ทำรายการ',
+  'การกระทำ',
   'รหัสครุภัณฑ์',
   'ชื่อครุภัณฑ์',
   'ตำแหน่งที่ตั้ง',
@@ -19,8 +30,6 @@ export const HEADER_ROW = [
   'ผู้รับผิดชอบ',
   'ผู้บันทึก',
   'หมายเหตุ',
-  'วันที่บันทึก',
-  'วันที่แก้ไข',
 ];
 
 export const RANGE_ALL = 'A:J';
@@ -41,9 +50,11 @@ export const LOG_HEADER_ROW = [
 
 export const RANGE_LOGS_ALL = 'Logs!A:K';
 
-const INITIAL_DEMO_RECORDS: AssetRecord[] = [
+const INITIAL_DEMO_TRANSACTIONS: AssetTransaction[] = [
   {
     id: 'rec-demo-001',
+    timestamp: '2026-01-15T09:00:00.000Z',
+    action: 'บันทึกรายการใหม่',
     assetCode: 'EQ-2026-001',
     name: 'คอมพิวเตอร์ All-in-One Dell OptiPlex 7400',
     location: 'ฝ่ายเทคโนโลยีสารสนเทศ ชั้น 4',
@@ -51,11 +62,11 @@ const INITIAL_DEMO_RECORDS: AssetRecord[] = [
     responsiblePerson: 'นายสมเกียรติ ยั่งยืน',
     recordedBy: 'นางสาววิไลลักษณ์ มั่นคง',
     notes: 'ติดตั้งชุดโปรแกรมสำนักงานและระบบความปลอดภัยครบถ้วน',
-    createdAt: '2026-01-15T09:00:00.000Z',
-    updatedAt: '2026-01-15T09:00:00.000Z',
   },
   {
     id: 'rec-demo-002',
+    timestamp: '2026-02-01T10:30:00.000Z',
+    action: 'บันทึกรายการใหม่',
     assetCode: 'EQ-2026-002',
     name: 'เครื่องพิมพ์มัลติฟังก์ชัน HP LaserJet Pro',
     location: 'กองบริหารงานทั่วไป ชั้น 2',
@@ -63,11 +74,23 @@ const INITIAL_DEMO_RECORDS: AssetRecord[] = [
     responsiblePerson: 'นางสาวพัชรี นวลจันทร์',
     recordedBy: 'นางสาววิไลลักษณ์ มั่นคง',
     notes: 'ใช้งานส่วนกลางสำหรับพิมพ์เอกสารราชการ',
-    createdAt: '2026-02-01T10:30:00.000Z',
-    updatedAt: '2026-02-10T14:15:00.000Z',
   },
   {
     id: 'rec-demo-003',
+    timestamp: '2026-03-01T08:45:00.000Z',
+    action: 'บันทึกรายการใหม่',
+    assetCode: 'EQ-2026-003',
+    name: 'จอมอนิเตอร์ Dell UltraSharp 27 นิ้ว 4K',
+    location: 'ฝ่ายออกแบบและสื่อสิ่งพิมพ์ ชั้น 3',
+    status: 'พร้อมใช้งาน',
+    responsiblePerson: 'นายอนุรักษ์ รอบรู้',
+    recordedBy: 'นายวีระ ศักดิ์ศรี',
+    notes: 'รับมอบจอภาพใหม่',
+  },
+  {
+    id: 'rec-demo-003-tx2',
+    timestamp: '2026-03-05T11:20:00.000Z',
+    action: 'แก้ไข/ย้ายตำแหน่ง',
     assetCode: 'EQ-2026-003',
     name: 'จอมอนิเตอร์ Dell UltraSharp 27 นิ้ว 4K',
     location: 'ฝ่ายออกแบบและสื่อสิ่งพิมพ์ ชั้น 3',
@@ -75,11 +98,23 @@ const INITIAL_DEMO_RECORDS: AssetRecord[] = [
     responsiblePerson: 'นายอนุรักษ์ รอบรู้',
     recordedBy: 'นายวีระ ศักดิ์ศรี',
     notes: 'ส่งศูนย์ซ่อมเคลมพาเนลหน้าจอ อาการกระพริบ',
-    createdAt: '2026-03-01T08:45:00.000Z',
-    updatedAt: '2026-03-05T11:20:00.000Z',
   },
   {
     id: 'rec-demo-004',
+    timestamp: '2025-11-20T11:00:00.000Z',
+    action: 'บันทึกรายการใหม่',
+    assetCode: 'EQ-2026-004',
+    name: 'เก้าอี้สำนักงานเพื่อสุขภาพ Ergonomic Steelcase',
+    location: 'ห้องประชุมผู้บริหาร ชั้น 5',
+    status: 'พร้อมใช้งาน',
+    responsiblePerson: 'นายประจักษ์ เกียรติดำรง',
+    recordedBy: 'นายวีระ ศักดิ์ศรี',
+    notes: 'จัดซื้อประจำปี 2568',
+  },
+  {
+    id: 'rec-demo-004-tx2',
+    timestamp: '2026-01-05T16:20:00.000Z',
+    action: 'จำหน่าย/ตัดบัญชี',
     assetCode: 'EQ-2026-004',
     name: 'เก้าอี้สำนักงานเพื่อสุขภาพ Ergonomic Steelcase',
     location: 'ห้องประชุมผู้บริหาร ชั้น 5',
@@ -87,12 +122,10 @@ const INITIAL_DEMO_RECORDS: AssetRecord[] = [
     responsiblePerson: 'นายประจักษ์ เกียรติดำรง',
     recordedBy: 'นายวีระ ศักดิ์ศรี',
     notes: 'แกนโช๊คชำรุดตามอายุการใช้งาน เกินระยะคุ้มค่าซ่อม',
-    createdAt: '2025-11-20T11:00:00.000Z',
-    updatedAt: '2026-01-05T16:20:00.000Z',
   },
 ];
 
-let demoStore: AssetRecord[] = INITIAL_DEMO_RECORDS.map((r) => ({ ...r }));
+let demoTransactions: AssetTransaction[] = INITIAL_DEMO_TRANSACTIONS.map((t) => ({ ...t }));
 let demoLogsStore: AssetLogRecord[] = [];
 
 export class AssetCollisionError extends Error {
@@ -104,10 +137,6 @@ export class AssetCollisionError extends Error {
   }
 }
 
-export function normalizeAssetCode(code: string | undefined | null): string {
-  return code ? code.trim().toLowerCase() : '';
-}
-
 function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -115,34 +144,35 @@ function generateId(): string {
   return 'rec-' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
 }
 
-function rowToRecord(row: string[]): AssetRecord {
-  const statusCandidate = row?.[4];
+function rowToTransaction(row: string[]): AssetTransaction {
+  const actionCandidate = row?.[2];
+  const statusCandidate = row?.[6];
   return {
     id: row?.[0] ?? '',
-    assetCode: row?.[1] ?? '',
-    name: row?.[2] ?? '',
-    location: row?.[3] ?? '',
+    timestamp: row?.[1] ?? '',
+    action: (actionCandidate as TransactionAction) || 'บันทึกรายการใหม่',
+    assetCode: row?.[3] ?? '',
+    name: row?.[4] ?? '',
+    location: row?.[5] ?? '',
     status: isValidAssetStatus(statusCandidate) ? statusCandidate : 'พร้อมใช้งาน',
-    responsiblePerson: row?.[5] ?? '',
-    recordedBy: row?.[6] ?? '',
-    notes: row?.[7] ?? '',
-    createdAt: row?.[8] ?? '',
-    updatedAt: row?.[9] ?? '',
+    responsiblePerson: row?.[7] ?? '',
+    recordedBy: row?.[8] ?? '',
+    notes: row?.[9] ?? '',
   };
 }
 
-function recordToRow(record: AssetRecord): string[] {
+function transactionToRow(tx: AssetTransaction): string[] {
   return [
-    record.id,
-    record.assetCode,
-    record.name,
-    record.location,
-    record.status,
-    record.responsiblePerson,
-    record.recordedBy,
-    record.notes,
-    record.createdAt,
-    record.updatedAt,
+    tx.id,
+    tx.timestamp,
+    tx.action,
+    tx.assetCode,
+    tx.name,
+    tx.location,
+    tx.status,
+    tx.responsiblePerson,
+    tx.recordedBy,
+    tx.notes,
   ];
 }
 
@@ -275,24 +305,28 @@ export async function ensureLogsSheet(
 
 export const sheetsService = {
   resetDemoStore(): void {
-    demoStore = INITIAL_DEMO_RECORDS.map((r) => ({ ...r }));
+    demoTransactions = INITIAL_DEMO_TRANSACTIONS.map((t) => ({ ...t }));
     demoLogsStore = [];
   },
 
-  async getRecords(): Promise<AssetRecord[]> {
+  async getTransactions(): Promise<AssetTransaction[]> {
     const client = getSheetsClient();
     if (!client) {
-      return [...demoStore];
+      return demoTransactions.map((t) => ({ ...t }));
     }
 
     const { sheets, spreadsheetId } = client;
     const values = await ensureHeaderRow(sheets, spreadsheetId);
 
-    // Skip the header row (index 0) and filter out empty rows
     const dataRows = values.slice(1);
     return dataRows
       .filter((row) => row && row[0] && row[0].trim().length > 0)
-      .map(rowToRecord);
+      .map(rowToTransaction);
+  },
+
+  async getRecords(): Promise<AssetRecord[]> {
+    const txs = await this.getTransactions();
+    return projectLatestAssets(txs);
   },
 
   async getRecordById(id: string): Promise<AssetRecord | null> {
@@ -300,62 +334,91 @@ export const sheetsService = {
     return records.find((r) => r.id === id) ?? null;
   },
 
+  async getRecordByAssetCode(code: string): Promise<AssetRecord | null> {
+    const normalized = normalizeAssetCode(code);
+    const records = await this.getRecords();
+    return records.find((r) => normalizeAssetCode(r.assetCode) === normalized) ?? null;
+  },
+
   async getLogs(filter?: { assetId?: string; assetCode?: string }): Promise<AssetLogRecord[]> {
     const client = getSheetsClient();
+
+    // If running in demo mode
     if (!client) {
       let logs = [...demoLogsStore].reverse();
       if (filter?.assetId) {
         logs = logs.filter((l) => l.assetId === filter.assetId);
       }
       if (filter?.assetCode) {
-        logs = logs.filter((l) => l.assetCode === filter.assetCode);
+        const norm = normalizeAssetCode(filter.assetCode);
+        logs = logs.filter((l) => normalizeAssetCode(l.assetCode) === norm);
       }
       return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     }
 
-    const { sheets, spreadsheetId } = client;
-    await ensureLogsSheet(sheets, spreadsheetId);
-
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: RANGE_LOGS_ALL,
-    });
-
-    const values = res?.data?.values;
-    if (!values || values.length <= 1) {
-      return [];
-    }
-
-    let records: AssetRecord[] = [];
+    // Google Sheets mode: check Logs sheet first for backward compatibility
     try {
-      records = await this.getRecords();
+      const { sheets, spreadsheetId } = client;
+      await ensureLogsSheet(sheets, spreadsheetId);
+      const res = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: RANGE_LOGS_ALL,
+      });
+      const values = res?.data?.values;
+      if (values && values.length > 1) {
+        let records: AssetRecord[] = [];
+        try {
+          records = await this.getRecords();
+        } catch {
+          // ignore
+        }
+        const codeToIdMap = new Map<string, string>();
+        for (const r of records) {
+          codeToIdMap.set(r.assetCode, r.id);
+        }
+        let logs = values
+          .slice(1)
+          .reverse()
+          .filter((row) => row && row[0] && row[0].trim().length > 0)
+          .map((row) => rowToLogRecord(row, codeToIdMap));
+
+        if (filter?.assetId) {
+          const targetAsset = records.find((r) => r.id === filter.assetId);
+          const tc = targetAsset?.assetCode;
+          logs = logs.filter(
+            (l) =>
+              (l.assetId && l.assetId === filter.assetId) ||
+              (tc && l.assetCode === tc)
+          );
+        }
+        if (filter?.assetCode) {
+          const norm = normalizeAssetCode(filter.assetCode);
+          logs = logs.filter((l) => normalizeAssetCode(l.assetCode) === norm);
+        }
+        return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      }
     } catch {
-      // ignore
-    }
-    const codeToIdMap = new Map<string, string>();
-    for (const r of records) {
-      codeToIdMap.set(r.assetCode, r.id);
+      // fallback to computing from transactions
     }
 
-    const dataRows = values.slice(1).reverse();
-    let logs = dataRows
-      .filter((row) => row && row[0] && row[0].trim().length > 0)
-      .map((row) => rowToLogRecord(row, codeToIdMap));
+    const txs = await this.getTransactions();
+    let targetCode = filter?.assetCode;
 
-    if (filter?.assetId) {
-      const targetAsset = records.find((r) => r.id === filter.assetId);
-      const targetCode = targetAsset?.assetCode;
-      logs = logs.filter(
-        (l) =>
-          (l.assetId && l.assetId === filter.assetId) ||
-          (targetCode && l.assetCode === targetCode)
-      );
-    }
-    if (filter?.assetCode) {
-      logs = logs.filter((l) => l.assetCode === filter.assetCode);
+    if (!targetCode && filter?.assetId) {
+      const records = await this.getRecords();
+      const match = records.find((r) => r.id === filter.assetId);
+      if (match) {
+        targetCode = match.assetCode;
+      }
     }
 
-    return logs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    let filteredTxs = txs;
+    if (targetCode) {
+      const normalizedTarget = normalizeAssetCode(targetCode);
+      filteredTxs = txs.filter((t) => normalizeAssetCode(t.assetCode) === normalizedTarget);
+    }
+
+    return computeTransactionDiffs(filteredTxs);
   },
 
   async appendLog(log: AssetLogRecord): Promise<void> {
@@ -383,85 +446,31 @@ export const sheetsService = {
     data: Omit<CreateAssetInput, 'notes'> & { notes?: string }
   ): Promise<AssetRecord> {
     const normalizedCode = normalizeAssetCode(data.assetCode);
+    const existing = await this.getRecordByAssetCode(normalizedCode);
+    const isUpdate = Boolean(existing);
+
+    const now = new Date().toISOString();
+    const action: TransactionAction = isUpdate ? 'แก้ไข/ย้ายตำแหน่ง' : 'บันทึกรายการใหม่';
+
+    const newTx: AssetTransaction = {
+      id: isUpdate && existing ? existing.id : generateId(),
+      timestamp: now,
+      action,
+      assetCode: data.assetCode.trim(),
+      name: data.name,
+      location: data.location,
+      status: data.status,
+      responsiblePerson: data.responsiblePerson,
+      recordedBy: data.recordedBy,
+      notes: data.notes || '',
+    };
+
     const client = getSheetsClient();
-
     if (!client) {
-      const existing = demoStore.find(
-        (r) => normalizeAssetCode(r.assetCode) === normalizedCode
-      );
-      if (existing) {
-        const updated = await this.updateRecord(existing.id, {
-          ...data,
-          assetCode: data.assetCode.trim(),
-        });
-        return updated!;
-      }
-
-      const now = new Date().toISOString();
-      const newRecord: AssetRecord = {
-        id: generateId(),
-        assetCode: data.assetCode.trim(),
-        name: data.name,
-        location: data.location,
-        status: data.status,
-        responsiblePerson: data.responsiblePerson,
-        recordedBy: data.recordedBy,
-        notes: data.notes || '',
-        createdAt: now,
-        updatedAt: now,
-      };
-      demoStore.push(newRecord);
-
-      const logRecord: AssetLogRecord = {
-        id: generateId(),
-        timestamp: now,
-        action: 'บันทึกรายการใหม่',
-        assetId: newRecord.id,
-        assetCode: newRecord.assetCode,
-        name: newRecord.name,
-        locationChange: `- ➔ ${newRecord.location}`,
-        responsibleChange: `- ➔ ${newRecord.responsiblePerson}`,
-        statusChange: `- ➔ ${newRecord.status}`,
-        changeSummary: 'บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ',
-        recordedBy: newRecord.recordedBy,
-        notes: newRecord.notes || '',
-      };
-
-      try {
-        await this.appendLog(logRecord);
-      } catch (logErr) {
-        console.error('Failed to append audit log for createRecord:', logErr);
-      }
-
-      return newRecord;
+      demoTransactions.push(newTx);
     } else {
       const { sheets, spreadsheetId } = client;
-      const values = await ensureHeaderRow(sheets, spreadsheetId);
-
-      const existingRow = values
-        .slice(1)
-        .find((row) => row && row[1] && normalizeAssetCode(row[1]) === normalizedCode);
-      if (existingRow && existingRow[0]) {
-        const updated = await this.updateRecord(existingRow[0], {
-          ...data,
-          assetCode: data.assetCode.trim(),
-        });
-        return updated!;
-      }
-
-      const now = new Date().toISOString();
-      const newRecord: AssetRecord = {
-        id: generateId(),
-        assetCode: data.assetCode.trim(),
-        name: data.name,
-        location: data.location,
-        status: data.status,
-        responsiblePerson: data.responsiblePerson,
-        recordedBy: data.recordedBy,
-        notes: data.notes || '',
-        createdAt: now,
-        updatedAt: now,
-      };
+      await ensureHeaderRow(sheets, spreadsheetId);
 
       await sheets.spreadsheets.values.append({
         spreadsheetId,
@@ -469,133 +478,131 @@ export const sheetsService = {
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
-          values: [recordToRow(newRecord)],
+          values: [transactionToRow(newTx)],
         },
       });
-
-      const logRecord: AssetLogRecord = {
-        id: generateId(),
-        timestamp: now,
-        action: 'บันทึกรายการใหม่',
-        assetId: newRecord.id,
-        assetCode: newRecord.assetCode,
-        name: newRecord.name,
-        locationChange: `- ➔ ${newRecord.location}`,
-        responsibleChange: `- ➔ ${newRecord.responsiblePerson}`,
-        statusChange: `- ➔ ${newRecord.status}`,
-        changeSummary: 'บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ',
-        recordedBy: newRecord.recordedBy,
-        notes: newRecord.notes || '',
-      };
-
-      try {
-        await this.appendLog(logRecord);
-      } catch (logErr) {
-        console.error('Failed to append audit log for createRecord:', logErr);
-      }
-
-      return newRecord;
     }
+
+    // Also append to audit log for full audit trail continuity
+    const logRecord: AssetLogRecord = {
+      id: generateId(),
+      timestamp: now,
+      action: isUpdate ? 'แก้ไข/ย้ายตำแหน่ง' : 'บันทึกรายการใหม่',
+      assetId: newTx.id,
+      assetCode: newTx.assetCode,
+      name: newTx.name,
+      locationChange: isUpdate && existing ? `${existing.location || '-'} ➔ ${newTx.location}` : `- ➔ ${newTx.location}`,
+      responsibleChange: isUpdate && existing ? `${existing.responsiblePerson || '-'} ➔ ${newTx.responsiblePerson}` : `- ➔ ${newTx.responsiblePerson}`,
+      statusChange: isUpdate && existing ? `${existing.status || '-'} ➔ ${newTx.status}` : `- ➔ ${newTx.status}`,
+      changeSummary: isUpdate ? 'อัปเดตข้อมูลครุภัณฑ์' : 'บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ',
+      recordedBy: newTx.recordedBy,
+      notes: newTx.notes || '',
+    };
+
+    try {
+      await this.appendLog(logRecord);
+    } catch (logErr) {
+      console.error('Failed to append audit log for createRecord:', logErr);
+    }
+
+    const createdRecord: AssetRecord = {
+      id: newTx.id,
+      assetCode: newTx.assetCode,
+      name: newTx.name,
+      location: newTx.location,
+      status: newTx.status,
+      responsiblePerson: newTx.responsiblePerson,
+      recordedBy: newTx.recordedBy,
+      notes: newTx.notes,
+      createdAt: isUpdate && existing ? existing.createdAt : newTx.timestamp,
+      updatedAt: newTx.timestamp,
+      transactionCount: (existing?.transactionCount || 0) + 1,
+      action: newTx.action,
+    };
+
+    return createdRecord;
   },
 
-  async updateRecord(id: string, data: UpdateAssetInput): Promise<AssetRecord | null> {
-    const client = getSheetsClient();
-    let oldRecord: AssetRecord;
-    let updatedRecord: AssetRecord;
+  async updateRecord(idOrCode: string, data: UpdateAssetInput): Promise<AssetRecord | null> {
+    const records = await this.getRecords();
+    const existing = records.find(
+      (r) => r.id === idOrCode || normalizeAssetCode(r.assetCode) === normalizeAssetCode(idOrCode)
+    );
+    if (!existing) return null;
 
     const sanitizedData: UpdateAssetInput = {
       ...data,
       ...(data.assetCode !== undefined ? { assetCode: data.assetCode.trim() } : {}),
     };
 
-    if (!client) {
-      const index = demoStore.findIndex((r) => r.id === id);
-      if (index === -1) return null;
-
-      oldRecord = demoStore[index];
-
-      if (
-        sanitizedData.assetCode !== undefined &&
-        normalizeAssetCode(sanitizedData.assetCode) !== normalizeAssetCode(oldRecord.assetCode)
-      ) {
-        const normalizedTarget = normalizeAssetCode(sanitizedData.assetCode);
-        const collision = demoStore.find(
-          (r) => r.id !== id && normalizeAssetCode(r.assetCode) === normalizedTarget
+    // Collision check: only when assetCode actually changes to another asset's code
+    if (
+      sanitizedData.assetCode !== undefined &&
+      normalizeAssetCode(sanitizedData.assetCode) !== normalizeAssetCode(existing.assetCode)
+    ) {
+      const targetNormalized = normalizeAssetCode(sanitizedData.assetCode);
+      const collision = records.find(
+        (r) => r.id !== existing.id && normalizeAssetCode(r.assetCode) === targetNormalized
+      );
+      if (collision) {
+        throw new AssetCollisionError(
+          `Asset code already exists on another item: ${sanitizedData.assetCode}`
         );
-        if (collision) {
-          throw new AssetCollisionError(
-            `Asset code already exists on another item: ${sanitizedData.assetCode}`
-          );
-        }
       }
+    }
 
-      updatedRecord = {
-        ...oldRecord,
-        ...sanitizedData,
-        id: oldRecord.id,
-        createdAt: oldRecord.createdAt,
-        updatedAt: sanitizedData.updatedAt ?? new Date().toISOString(),
-      };
-      demoStore[index] = updatedRecord;
+    const now = sanitizedData.updatedAt ?? new Date().toISOString();
+    const newTx: AssetTransaction = {
+      id: generateId(),
+      timestamp: now,
+      action: 'แก้ไข/ย้ายตำแหน่ง',
+      assetCode: sanitizedData.assetCode !== undefined ? sanitizedData.assetCode : existing.assetCode,
+      name: sanitizedData.name !== undefined ? sanitizedData.name : existing.name,
+      location: sanitizedData.location !== undefined ? sanitizedData.location : existing.location,
+      status: sanitizedData.status !== undefined && isValidAssetStatus(sanitizedData.status)
+        ? sanitizedData.status
+        : existing.status,
+      responsiblePerson: sanitizedData.responsiblePerson !== undefined
+        ? sanitizedData.responsiblePerson
+        : existing.responsiblePerson,
+      recordedBy: sanitizedData.recordedBy !== undefined
+        ? sanitizedData.recordedBy
+        : (existing.recordedBy || 'ระบบ'),
+      notes: sanitizedData.notes !== undefined ? sanitizedData.notes : (existing.notes || ''),
+    };
+
+    const client = getSheetsClient();
+    if (!client) {
+      demoTransactions.push(newTx);
     } else {
       const { sheets, spreadsheetId } = client;
-      const values = await ensureHeaderRow(sheets, spreadsheetId);
+      await ensureHeaderRow(sheets, spreadsheetId);
 
-      // Find row index (0 is header)
-      const rowIndex = values.findIndex((row, idx) => idx > 0 && row?.[0] === id);
-      if (rowIndex === -1) return null;
-
-      const currentRow = values[rowIndex];
-      oldRecord = rowToRecord(currentRow);
-
-      if (
-        sanitizedData.assetCode !== undefined &&
-        normalizeAssetCode(sanitizedData.assetCode) !== normalizeAssetCode(oldRecord.assetCode)
-      ) {
-        const normalizedTarget = normalizeAssetCode(sanitizedData.assetCode);
-        const collisionRow = values.slice(1).find((row) => {
-          const rowId = row?.[0];
-          const rowCode = row?.[1];
-          return rowId !== id && rowCode && normalizeAssetCode(rowCode) === normalizedTarget;
-        });
-        if (collisionRow) {
-          throw new AssetCollisionError(
-            `Asset code already exists on another item: ${sanitizedData.assetCode}`
-          );
-        }
-      }
-
-      updatedRecord = {
-        ...oldRecord,
-        ...sanitizedData,
-        id: oldRecord.id,
-        createdAt: oldRecord.createdAt,
-        updatedAt: sanitizedData.updatedAt ?? new Date().toISOString(),
-      };
-
-      const sheetRowNum = rowIndex + 1;
-      await sheets.spreadsheets.values.update({
+      // Append transaction to sheet (never in-place overwrite)
+      await sheets.spreadsheets.values.append({
         spreadsheetId,
-        range: `A${sheetRowNum}:J${sheetRowNum}`,
+        range: RANGE_ALL,
         valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
         requestBody: {
-          values: [recordToRow(updatedRecord)],
+          values: [transactionToRow(newTx)],
         },
       });
     }
 
     const diff = computeAssetDiff(
-      oldRecord,
+      existing,
       sanitizedData,
-      sanitizedData.recordedBy || updatedRecord.recordedBy || 'ระบบ',
+      sanitizedData.recordedBy || newTx.recordedBy || 'ระบบ',
       sanitizedData.notes
     );
 
     if (diff) {
       const logRecord: AssetLogRecord = {
         id: generateId(),
-        timestamp: updatedRecord.updatedAt,
+        timestamp: newTx.timestamp,
         ...diff,
+        assetId: existing.id,
       };
       try {
         await this.appendLog(logRecord);
@@ -604,66 +611,77 @@ export const sheetsService = {
       }
     }
 
+    const updatedRecord: AssetRecord = {
+      id: existing.id,
+      assetCode: newTx.assetCode,
+      name: newTx.name,
+      location: newTx.location,
+      status: newTx.status,
+      responsiblePerson: newTx.responsiblePerson,
+      recordedBy: newTx.recordedBy,
+      notes: newTx.notes,
+      createdAt: existing.createdAt,
+      updatedAt: newTx.timestamp,
+      transactionCount: (existing.transactionCount || 1) + 1,
+      action: newTx.action,
+    };
+
     return updatedRecord;
   },
 
-  async deleteRecord(id: string): Promise<boolean> {
-    const client = getSheetsClient();
-    let deletedRecord: AssetRecord;
+  async deleteRecord(idOrCode: string, recordedBy?: string, notes?: string): Promise<boolean> {
+    const records = await this.getRecords();
+    const existing = records.find(
+      (r) => r.id === idOrCode || normalizeAssetCode(r.assetCode) === normalizeAssetCode(idOrCode)
+    );
+    if (!existing) return false;
 
+    const now = new Date().toISOString();
+    const newTx: AssetTransaction = {
+      id: generateId(),
+      timestamp: now,
+      action: 'จำหน่าย/ตัดบัญชี',
+      assetCode: existing.assetCode,
+      name: existing.name,
+      location: existing.location,
+      status: 'จำหน่าย/ตัดบัญชี',
+      responsiblePerson: existing.responsiblePerson,
+      recordedBy: recordedBy || existing.recordedBy || 'ระบบ',
+      notes: notes || 'จำหน่าย/ตัดบัญชีออกจากระบบ',
+    };
+
+    const client = getSheetsClient();
     if (!client) {
-      const index = demoStore.findIndex((r) => r.id === id);
-      if (index === -1) return false;
-      deletedRecord = demoStore[index];
-      demoStore.splice(index, 1);
+      demoTransactions.push(newTx);
     } else {
       const { sheets, spreadsheetId } = client;
-      const values = await ensureHeaderRow(sheets, spreadsheetId);
+      await ensureHeaderRow(sheets, spreadsheetId);
 
-      const rowIndex = values.findIndex((row, idx) => idx > 0 && row?.[0] === id);
-      if (rowIndex === -1) return false;
-
-      deletedRecord = rowToRecord(values[rowIndex]);
-
-      // Get the non-Logs sheet's ID for deleteDimension
-      const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId });
-      const targetSheet = spreadsheet.data.sheets?.find(
-        (s) => s.properties?.title && s.properties.title !== 'Logs'
-      ) ?? spreadsheet.data.sheets?.[0];
-      const sheetId = targetSheet?.properties?.sheetId ?? 0;
-
-      await sheets.spreadsheets.batchUpdate({
+      // Append decommission transaction (never deleteDimension)
+      await sheets.spreadsheets.values.append({
         spreadsheetId,
+        range: RANGE_ALL,
+        valueInputOption: 'USER_ENTERED',
+        insertDataOption: 'INSERT_ROWS',
         requestBody: {
-          requests: [
-            {
-              deleteDimension: {
-                range: {
-                  sheetId,
-                  dimension: 'ROWS',
-                  startIndex: rowIndex,
-                  endIndex: rowIndex + 1,
-                },
-              },
-            },
-          ],
+          values: [transactionToRow(newTx)],
         },
       });
     }
 
     const logRecord: AssetLogRecord = {
       id: generateId(),
-      timestamp: new Date().toISOString(),
+      timestamp: now,
       action: 'ลบรายการ',
-      assetId: deletedRecord.id,
-      assetCode: deletedRecord.assetCode,
-      name: deletedRecord.name,
-      locationChange: `${deletedRecord.location || '-'} ➔ -`,
-      responsibleChange: `${deletedRecord.responsiblePerson || '-'} ➔ -`,
-      statusChange: `${deletedRecord.status || '-'} ➔ -`,
+      assetId: existing.id,
+      assetCode: existing.assetCode,
+      name: existing.name,
+      locationChange: `${existing.location || '-'} ➔ -`,
+      responsibleChange: `${existing.responsiblePerson || '-'} ➔ -`,
+      statusChange: `${existing.status || '-'} ➔ -`,
       changeSummary: 'ลบรายการครุภัณฑ์ออกจากระบบ',
-      recordedBy: deletedRecord.recordedBy || 'ระบบ',
-      notes: deletedRecord.notes || '',
+      recordedBy: newTx.recordedBy,
+      notes: newTx.notes,
     };
 
     try {

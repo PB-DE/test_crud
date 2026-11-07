@@ -11,9 +11,11 @@ import * as envModule from '../src/lib/env';
 import { google } from 'googleapis';
 
 describe('HEADER_ROW and RANGE_ALL constants', () => {
-  it('defines the correct 10 Thai column headers for asset tracking', () => {
+  it('defines the correct 10 Thai column headers for asset tracking transaction ledger', () => {
     expect(HEADER_ROW).toEqual([
       'ID',
+      'วันเวลาที่ทำรายการ',
+      'การกระทำ',
       'รหัสครุภัณฑ์',
       'ชื่อครุภัณฑ์',
       'ตำแหน่งที่ตั้ง',
@@ -21,8 +23,6 @@ describe('HEADER_ROW and RANGE_ALL constants', () => {
       'ผู้รับผิดชอบ',
       'ผู้บันทึก',
       'หมายเหตุ',
-      'วันที่บันทึก',
-      'วันที่แก้ไข',
     ]);
   });
 
@@ -56,6 +56,42 @@ describe('LOG_HEADER_ROW and RANGE_LOGS_ALL constants', () => {
 describe('sheetsService (demo mode)', () => {
   beforeEach(async () => {
     sheetsService.resetDemoStore();
+  });
+
+  it('createRecord, updateRecord, and deleteRecord append transactions without modifying existing rows', async () => {
+    sheetsService.resetDemoStore();
+
+    const created = await sheetsService.createRecord({
+      assetCode: 'EQ-APPEND-01',
+      name: 'Camera Sony',
+      location: 'Studio A',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'Photographer',
+      recordedBy: 'Admin',
+    });
+
+    const updated = await sheetsService.updateRecord(created.assetCode, {
+      location: 'Studio B',
+      recordedBy: 'Admin',
+    });
+
+    const deleted = await sheetsService.deleteRecord(created.assetCode, 'Admin', 'Decommissioned');
+
+    expect(deleted).toBe(true);
+
+    // All transactions are preserved in the ledger
+    const txs = await sheetsService.getTransactions();
+    const matching = txs.filter((t) => t.assetCode === 'EQ-APPEND-01');
+    expect(matching.length).toBe(3);
+    expect(matching[0].action).toBe('บันทึกรายการใหม่');
+    expect(matching[1].action).toBe('แก้ไข/ย้ายตำแหน่ง');
+    expect(matching[2].action).toBe('จำหน่าย/ตัดบัญชี');
+
+    // getRecords projects latest state
+    const records = await sheetsService.getRecords();
+    const current = records.find((r) => r.assetCode === 'EQ-APPEND-01');
+    expect(current?.location).toBe('Studio B');
+    expect(current?.status).toBe('จำหน่าย/ตัดบัญชี');
   });
 
   it('creates and lists records in demo mode when credentials are not configured', async () => {
@@ -129,12 +165,12 @@ describe('sheetsService (demo mode)', () => {
     expect(notFound).toBeNull();
   });
 
-  it('deletes an existing record by id', async () => {
+  it('deletes an existing record by id (soft decommissioning in ledger)', async () => {
     const created = await sheetsService.createRecord({
       assetCode: 'EQ-2026-102',
       name: 'เก้าอี้สำนักงานทดสอบ',
       location: 'ห้องเก็บของ',
-      status: 'จำหน่าย/ตัดบัญชี',
+      status: 'พร้อมใช้งาน',
       responsiblePerson: 'สมชาย สายตรวจ',
       recordedBy: 'สุพัตรา สารสนเทศ',
       notes: 'รอทิ้ง',
@@ -144,7 +180,7 @@ describe('sheetsService (demo mode)', () => {
     expect(success).toBe(true);
 
     const found = await sheetsService.getRecordById(created.id);
-    expect(found).toBeNull();
+    expect(found?.status).toBe('จำหน่าย/ตัดบัญชี');
 
     const notFoundSuccess = await sheetsService.deleteRecord('non-existent-id');
     expect(notFoundSuccess).toBe(false);
@@ -494,6 +530,8 @@ describe('sheetsService (Google Sheets mode)', () => {
           HEADER_ROW,
           [
             'rec-1',
+            '2026-01-02T09:00:00.000Z',
+            'บันทึกรายการใหม่',
             'EQ-2026-001',
             'คอมพิวเตอร์ All-in-One Dell OptiPlex',
             'อาคาร 1 ชั้น 3 ห้อง 302',
@@ -501,12 +539,12 @@ describe('sheetsService (Google Sheets mode)', () => {
             'นายสมเกียรติ ยั่งยืน',
             'นางสาววิไลลักษณ์ มั่นคง',
             'สภาพสมบูรณ์',
-            '2026-01-01T08:00:00.000Z',
-            '2026-01-02T09:00:00.000Z',
           ],
           ['', '', '', '', '', '', '', '', '', ''], // empty row to verify filter
           [
             'rec-2',
+            '2026-01-03T10:00:00.000Z',
+            'บันทึกรายการใหม่',
             'EQ-2026-002',
             'เครื่องพิมพ์เลเซอร์ HP LaserJet',
             'ฝ่ายสารสนเทศ ชั้น 2',
@@ -514,8 +552,6 @@ describe('sheetsService (Google Sheets mode)', () => {
             'นายอนุรักษ์ รอบรู้',
             'นายวีระ ศักดิ์ศรี',
             'ดรัมหมึกมีปัญหา',
-            '2026-01-03T10:00:00.000Z',
-            '2026-01-03T10:00:00.000Z',
           ],
         ],
       },
@@ -524,20 +560,23 @@ describe('sheetsService (Google Sheets mode)', () => {
     const records = await sheetsService.getRecords();
     expect(records.length).toBe(2);
     expect(records[0]).toEqual({
-      id: 'rec-1',
-      assetCode: 'EQ-2026-001',
-      name: 'คอมพิวเตอร์ All-in-One Dell OptiPlex',
-      location: 'อาคาร 1 ชั้น 3 ห้อง 302',
-      status: 'พร้อมใช้งาน',
-      responsiblePerson: 'นายสมเกียรติ ยั่งยืน',
-      recordedBy: 'นางสาววิไลลักษณ์ มั่นคง',
-      notes: 'สภาพสมบูรณ์',
-      createdAt: '2026-01-01T08:00:00.000Z',
-      updatedAt: '2026-01-02T09:00:00.000Z',
+      id: 'rec-2',
+      assetCode: 'EQ-2026-002',
+      name: 'เครื่องพิมพ์เลเซอร์ HP LaserJet',
+      location: 'ฝ่ายสารสนเทศ ชั้น 2',
+      status: 'ส่งซ่อม',
+      responsiblePerson: 'นายอนุรักษ์ รอบรู้',
+      recordedBy: 'นายวีระ ศักดิ์ศรี',
+      notes: 'ดรัมหมึกมีปัญหา',
+      timestamp: '2026-01-03T10:00:00.000Z',
+      createdAt: '2026-01-03T10:00:00.000Z',
+      updatedAt: '2026-01-03T10:00:00.000Z',
+      transactionCount: 1,
+      action: 'บันทึกรายการใหม่',
     });
-    expect(records[1].assetCode).toBe('EQ-2026-002');
-    expect(records[1].name).toBe('เครื่องพิมพ์เลเซอร์ HP LaserJet');
-    expect(records[1].status).toBe('ส่งซ่อม');
+    expect(records[1].assetCode).toBe('EQ-2026-001');
+    expect(records[1].name).toBe('คอมพิวเตอร์ All-in-One Dell OptiPlex');
+    expect(records[1].status).toBe('พร้อมใช้งาน');
   });
 
   it('falls back to default status when status in sheet is invalid', async () => {
@@ -547,6 +586,8 @@ describe('sheetsService (Google Sheets mode)', () => {
           HEADER_ROW,
           [
             'rec-bad',
+            '2026-01-01T08:00:00.000Z',
+            'บันทึกรายการใหม่',
             'EQ-2026-999',
             'อุปกรณ์สถานะไม่ถูกต้อง',
             'ชั้น 1',
@@ -554,8 +595,6 @@ describe('sheetsService (Google Sheets mode)', () => {
             'สมชาย',
             'วิไลลักษณ์',
             '',
-            '2026-01-01T08:00:00.000Z',
-            '2026-01-01T08:00:00.000Z',
           ],
         ],
       },
@@ -594,15 +633,15 @@ describe('sheetsService (Google Sheets mode)', () => {
     const rowValues = callArgs.requestBody.values[0];
     expect(rowValues.length).toBe(10);
     expect(rowValues[0]).toBe(created.id);
-    expect(rowValues[1]).toBe('EQ-2026-005');
-    expect(rowValues[2]).toBe('เครื่องสำรองไฟ APC 1000VA');
-    expect(rowValues[3]).toBe('ห้อง Server 1');
-    expect(rowValues[4]).toBe('พร้อมใช้งาน');
-    expect(rowValues[5]).toBe('นายช่างใหญ่ ประจำตึก');
-    expect(rowValues[6]).toBe('นายบันทึก การงาน');
-    expect(rowValues[7]).toBe('ติดตั้งแล้ว');
-    expect(rowValues[8]).toBe(created.createdAt);
-    expect(rowValues[9]).toBe(created.updatedAt);
+    expect(rowValues[1]).toBe(created.createdAt);
+    expect(rowValues[2]).toBe('บันทึกรายการใหม่');
+    expect(rowValues[3]).toBe('EQ-2026-005');
+    expect(rowValues[4]).toBe('เครื่องสำรองไฟ APC 1000VA');
+    expect(rowValues[5]).toBe('ห้อง Server 1');
+    expect(rowValues[6]).toBe('พร้อมใช้งาน');
+    expect(rowValues[7]).toBe('นายช่างใหญ่ ประจำตึก');
+    expect(rowValues[8]).toBe('นายบันทึก การงาน');
+    expect(rowValues[9]).toBe('ติดตั้งแล้ว');
 
     const logCallArgs = mockValuesAppend.mock.calls[1][0];
     expect(logCallArgs.spreadsheetId).toBe('test-sheet-id');
@@ -612,13 +651,15 @@ describe('sheetsService (Google Sheets mode)', () => {
     expect(logRowValues[3]).toBe('EQ-2026-005');
   });
 
-  it('updates an existing row by looking up unique id', async () => {
+  it('updates an existing record by appending a new transaction row to Google Sheet', async () => {
     mockValuesGet.mockResolvedValueOnce({
       data: {
         values: [
           HEADER_ROW, // row 1
           [
             'rec-1',
+            '2026-01-01T00:00:00.000Z',
+            'บันทึกรายการใหม่',
             'EQ-2026-001',
             'คอมพิวเตอร์ Dell',
             'ห้อง 101',
@@ -626,11 +667,11 @@ describe('sheetsService (Google Sheets mode)', () => {
             'สมศักดิ์',
             'สมชาย',
             '',
-            '2026-01-01',
-            '2026-01-01',
-          ], // row 2
+          ],
           [
             'rec-2',
+            '2026-01-02T00:00:00.000Z',
+            'บันทึกรายการใหม่',
             'EQ-2026-002',
             'เครื่องพิมพ์ HP',
             'ห้อง 102',
@@ -638,9 +679,7 @@ describe('sheetsService (Google Sheets mode)', () => {
             'วิไลลักษณ์',
             'สมชาย',
             '',
-            '2026-01-02',
-            '2026-01-02',
-          ], // row 3
+          ],
         ],
       },
     });
@@ -660,23 +699,25 @@ describe('sheetsService (Google Sheets mode)', () => {
     expect(updated?.status).toBe('กำลังใช้งาน');
     expect(updated?.responsiblePerson).toBe('วิชัย ปลอดภัย');
 
-    expect(mockValuesUpdate).toHaveBeenCalledWith(
+    // In append-only architecture, writes use mockValuesAppend, never mockValuesUpdate
+    expect(mockValuesAppend).toHaveBeenCalledWith(
       expect.objectContaining({
         spreadsheetId: 'test-sheet-id',
-        range: 'A3:J3', // Row 3 in sheet with 10 columns
+        range: RANGE_ALL,
         valueInputOption: 'USER_ENTERED',
       })
     );
 
-    const callArgs = mockValuesUpdate.mock.calls[0][0];
-    const updatedRow = callArgs.requestBody.values[0];
-    expect(updatedRow.length).toBe(10);
-    expect(updatedRow[0]).toBe('rec-2');
-    expect(updatedRow[1]).toBe('EQ-2026-002');
-    expect(updatedRow[2]).toBe('เครื่องพิมพ์ HP LaserJet Pro (อัปเกรด)');
-    expect(updatedRow[3]).toBe('ห้อง 205');
-    expect(updatedRow[4]).toBe('กำลังใช้งาน');
-    expect(updatedRow[5]).toBe('วิชัย ปลอดภัย');
+    const callArgs = mockValuesAppend.mock.calls[0][0];
+    const appendedRow = callArgs.requestBody.values[0];
+    expect(appendedRow.length).toBe(10);
+    expect(appendedRow[2]).toBe('แก้ไข/ย้ายตำแหน่ง');
+    expect(appendedRow[3]).toBe('EQ-2026-002');
+    expect(appendedRow[4]).toBe('เครื่องพิมพ์ HP LaserJet Pro (อัปเกรด)');
+    expect(appendedRow[5]).toBe('ห้อง 205');
+    expect(appendedRow[6]).toBe('กำลังใช้งาน');
+    expect(appendedRow[7]).toBe('วิชัย ปลอดภัย');
+    expect(mockValuesUpdate).not.toHaveBeenCalled();
   });
 
   it('returns null when updating non-existent record in Google Sheet', async () => {
@@ -684,7 +725,7 @@ describe('sheetsService (Google Sheets mode)', () => {
       data: {
         values: [
           HEADER_ROW,
-          ['rec-1', 'EQ-2026-001', 'คอมพิวเตอร์', 'ห้อง 1', 'พร้อมใช้งาน', 'สมศักดิ์', 'สมชาย', '', '2026-01-01', '2026-01-01'],
+          ['rec-1', '2026-01-01T00:00:00.000Z', 'บันทึกรายการใหม่', 'EQ-2026-001', 'คอมพิวเตอร์', 'ห้อง 1', 'พร้อมใช้งาน', 'สมศักดิ์', 'สมชาย', ''],
         ],
       },
     });
@@ -696,13 +737,13 @@ describe('sheetsService (Google Sheets mode)', () => {
     expect(mockValuesUpdate).not.toHaveBeenCalled();
   });
 
-  it('deletes an existing row by id using deleteDimension batchUpdate', async () => {
+  it('deletes an existing record by appending a decommissioning transaction row', async () => {
     mockValuesGet.mockResolvedValueOnce({
       data: {
         values: [
-          HEADER_ROW, // index 0 (row 1)
-          ['rec-1', 'EQ-2026-001', 'คอมพิวเตอร์', 'ห้อง 1', 'พร้อมใช้งาน', 'สมศักดิ์', 'สมชาย', '', '2026-01-01', '2026-01-01'], // index 1 (row 2)
-          ['rec-2', 'EQ-2026-002', 'เครื่องพิมพ์', 'ห้อง 2', 'พร้อมใช้งาน', 'วิไลลักษณ์', 'สมชาย', '', '2026-01-02', '2026-01-02'], // index 2 (row 3)
+          HEADER_ROW,
+          ['rec-1', '2026-01-01T00:00:00.000Z', 'บันทึกรายการใหม่', 'EQ-2026-001', 'คอมพิวเตอร์', 'ห้อง 1', 'พร้อมใช้งาน', 'สมศักดิ์', 'สมชาย', ''],
+          ['rec-2', '2026-01-02T00:00:00.000Z', 'บันทึกรายการใหม่', 'EQ-2026-002', 'เครื่องพิมพ์', 'ห้อง 2', 'พร้อมใช้งาน', 'วิไลลักษณ์', 'สมชาย', ''],
         ],
       },
     });
@@ -710,23 +751,20 @@ describe('sheetsService (Google Sheets mode)', () => {
     const success = await sheetsService.deleteRecord('rec-2');
     expect(success).toBe(true);
 
-    expect(mockBatchUpdate).toHaveBeenCalledWith({
-      spreadsheetId: 'test-sheet-id',
-      requestBody: {
-        requests: [
-          {
-            deleteDimension: {
-              range: {
-                sheetId: 12345,
-                dimension: 'ROWS',
-                startIndex: 2,
-                endIndex: 3,
-              },
-            },
-          },
-        ],
-      },
-    });
+    // In append-only architecture, never calls batchUpdate with deleteDimension
+    expect(mockBatchUpdate).not.toHaveBeenCalled();
+    expect(mockValuesAppend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        spreadsheetId: 'test-sheet-id',
+        range: RANGE_ALL,
+        valueInputOption: 'USER_ENTERED',
+      })
+    );
+    const callArgs = mockValuesAppend.mock.calls[0][0];
+    const row = callArgs.requestBody.values[0];
+    expect(row[2]).toBe('จำหน่าย/ตัดบัญชี');
+    expect(row[3]).toBe('EQ-2026-002');
+    expect(row[6]).toBe('จำหน่าย/ตัดบัญชี');
   });
 
   it('returns false when deleting a non-existent record in Google Sheet', async () => {
@@ -734,7 +772,7 @@ describe('sheetsService (Google Sheets mode)', () => {
       data: {
         values: [
           HEADER_ROW,
-          ['rec-1', 'EQ-2026-001', 'คอมพิวเตอร์', 'ห้อง 1', 'พร้อมใช้งาน', 'สมศักดิ์', 'สมชาย', '', '2026-01-01', '2026-01-01'],
+          ['rec-1', '2026-01-01T00:00:00.000Z', 'บันทึกรายการใหม่', 'EQ-2026-001', 'คอมพิวเตอร์', 'ห้อง 1', 'พร้อมใช้งาน', 'สมศักดิ์', 'สมชาย', ''],
         ],
       },
     });
@@ -744,13 +782,15 @@ describe('sheetsService (Google Sheets mode)', () => {
     expect(mockBatchUpdate).not.toHaveBeenCalled();
   });
 
-  it('createRecord updates existing record when assetCode matches case-insensitively in Google Sheets mode', async () => {
+  it('createRecord appends update transaction when assetCode matches case-insensitively in Google Sheets mode', async () => {
     const sheetData = {
       data: {
         values: [
           HEADER_ROW,
           [
             'rec-existing-1',
+            '2026-01-01T00:00:00.000Z',
+            'บันทึกรายการใหม่',
             'EQ-GS-01',
             'เครื่องพิมพ์เดิม',
             'ห้อง 1',
@@ -758,15 +798,11 @@ describe('sheetsService (Google Sheets mode)', () => {
             'นาย ก',
             'Admin',
             '',
-            '2026-01-01T00:00:00.000Z',
-            '2026-01-01T00:00:00.000Z',
           ],
         ],
       },
     };
-    mockValuesGet
-      .mockResolvedValueOnce(sheetData)
-      .mockResolvedValueOnce(sheetData);
+    mockValuesGet.mockResolvedValueOnce(sheetData);
 
     const result = await sheetsService.createRecord({
       assetCode: '  eq-gs-01  ',
@@ -780,7 +816,8 @@ describe('sheetsService (Google Sheets mode)', () => {
 
     expect(result.id).toBe('rec-existing-1');
     expect(result.location).toBe('ห้อง 2');
-    expect(mockValuesUpdate).toHaveBeenCalled();
+    expect(result.action).toBe('แก้ไข/ย้ายตำแหน่ง');
+    expect(mockValuesAppend).toHaveBeenCalled();
   });
 
   it('updateRecord throws error if assetCode collides with another row in Google Sheets mode', async () => {
@@ -788,8 +825,8 @@ describe('sheetsService (Google Sheets mode)', () => {
       data: {
         values: [
           HEADER_ROW,
-          ['rec-1', 'EQ-ONE', 'Item 1', 'Room 1', 'พร้อมใช้งาน', 'User 1', 'Admin', '', '2026-01-01', '2026-01-01'],
-          ['rec-2', 'EQ-TWO', 'Item 2', 'Room 2', 'พร้อมใช้งาน', 'User 2', 'Admin', '', '2026-01-01', '2026-01-01'],
+          ['rec-1', '2026-01-01T00:00:00.000Z', 'บันทึกรายการใหม่', 'EQ-ONE', 'Item 1', 'Room 1', 'พร้อมใช้งาน', 'User 1', 'Admin', ''],
+          ['rec-2', '2026-01-01T00:00:00.000Z', 'บันทึกรายการใหม่', 'EQ-TWO', 'Item 2', 'Room 2', 'พร้อมใช้งาน', 'User 2', 'Admin', ''],
         ],
       },
     });
