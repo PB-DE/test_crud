@@ -3,6 +3,27 @@ import { sheetsService, HEADER_ROW, RANGE_ALL } from '../src/lib/sheets';
 import * as envModule from '../src/lib/env';
 import { google } from 'googleapis';
 
+describe('HEADER_ROW and RANGE_ALL constants', () => {
+  it('defines the correct 10 Thai column headers for asset tracking', () => {
+    expect(HEADER_ROW).toEqual([
+      'ID',
+      'รหัสครุภัณฑ์',
+      'ชื่อครุภัณฑ์',
+      'ตำแหน่งที่ตั้ง',
+      'สถานะ',
+      'ผู้รับผิดชอบ',
+      'ผู้บันทึก',
+      'หมายเหตุ',
+      'วันที่บันทึก',
+      'วันที่แก้ไข',
+    ]);
+  });
+
+  it('defines the correct column range A:J', () => {
+    expect(RANGE_ALL).toBe('A:J');
+  });
+});
+
 describe('sheetsService (demo mode)', () => {
   beforeEach(async () => {
     sheetsService.resetDemoStore();
@@ -14,15 +35,23 @@ describe('sheetsService (demo mode)', () => {
     expect(initialCount).toBeGreaterThan(0);
 
     const created = await sheetsService.createRecord({
-      name: 'Jane Doe',
-      email: 'jane@example.com',
-      role: 'Developer',
-      status: 'Active',
-      notes: 'Initial hire',
+      assetCode: 'EQ-2026-999',
+      name: 'เครื่องสแกนบาร์โค้ดไร้สาย Zebra DS2278',
+      location: 'ฝ่ายเทคโนโลยีสารสนเทศ ชั้น 4',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'สมชาย สายตรวจ',
+      recordedBy: 'สุพัตรา สารสนเทศ',
+      notes: 'รับมอบใหม่ ประกัน 3 ปี',
     });
 
     expect(created.id).toBeDefined();
-    expect(created.name).toBe('Jane Doe');
+    expect(created.assetCode).toBe('EQ-2026-999');
+    expect(created.name).toBe('เครื่องสแกนบาร์โค้ดไร้สาย Zebra DS2278');
+    expect(created.location).toBe('ฝ่ายเทคโนโลยีสารสนเทศ ชั้น 4');
+    expect(created.status).toBe('พร้อมใช้งาน');
+    expect(created.responsiblePerson).toBe('สมชาย สายตรวจ');
+    expect(created.recordedBy).toBe('สุพัตรา สารสนเทศ');
+    expect(created.notes).toBe('รับมอบใหม่ ประกัน 3 ปี');
     expect(created.createdAt).toBeDefined();
     expect(created.updatedAt).toBeDefined();
 
@@ -43,37 +72,43 @@ describe('sheetsService (demo mode)', () => {
 
   it('updates an existing record by id', async () => {
     const created = await sheetsService.createRecord({
-      name: 'Bob Smith',
-      email: 'bob@example.com',
-      role: 'Designer',
-      status: 'Pending',
+      assetCode: 'EQ-2026-101',
+      name: 'เครื่องสำรองไฟ APC 1000VA',
+      location: 'ห้องเซิร์ฟเวอร์ ชั้น 2',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'วิชัย ปลอดภัย',
+      recordedBy: 'สมชาย สายตรวจ',
       notes: '',
     });
 
     const updated = await sheetsService.updateRecord(created.id, {
-      status: 'Active',
-      role: 'Lead Designer',
+      status: 'กำลังใช้งาน',
+      location: 'ห้องเครือข่าย ชั้น 3',
+      responsiblePerson: 'ประเสริฐ ดียิ่ง',
     });
 
-    expect(updated?.status).toBe('Active');
-    expect(updated?.role).toBe('Lead Designer');
-    expect(updated?.email).toBe('bob@example.com');
+    expect(updated?.status).toBe('กำลังใช้งาน');
+    expect(updated?.location).toBe('ห้องเครือข่าย ชั้น 3');
+    expect(updated?.responsiblePerson).toBe('ประเสริฐ ดียิ่ง');
+    expect(updated?.assetCode).toBe('EQ-2026-101');
     expect(updated?.id).toBe(created.id);
     expect(new Date(updated!.updatedAt).getTime()).toBeGreaterThanOrEqual(new Date(created.updatedAt).getTime());
 
     const notFound = await sheetsService.updateRecord('non-existent-id', {
-      status: 'Active',
+      status: 'กำลังใช้งาน',
     });
     expect(notFound).toBeNull();
   });
 
   it('deletes an existing record by id', async () => {
     const created = await sheetsService.createRecord({
-      name: 'Alice Cooper',
-      email: 'alice@example.com',
-      role: 'QA',
-      status: 'Active',
-      notes: '',
+      assetCode: 'EQ-2026-102',
+      name: 'เก้าอี้สำนักงานทดสอบ',
+      location: 'ห้องเก็บของ',
+      status: 'จำหน่าย/ตัดบัญชี',
+      responsiblePerson: 'สมชาย สายตรวจ',
+      recordedBy: 'สุพัตรา สารสนเทศ',
+      notes: 'รอทิ้ง',
     });
 
     const success = await sheetsService.deleteRecord(created.id);
@@ -91,10 +126,12 @@ describe('sheetsService (demo mode)', () => {
     const initialCount = initialRecords.length;
 
     await sheetsService.createRecord({
-      name: 'Temp User',
-      email: 'temp@example.com',
-      role: 'Intern',
-      status: 'Pending',
+      assetCode: 'EQ-2026-103',
+      name: 'อุปกรณ์ชั่วคราว',
+      location: 'จุดพักของ',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'ทดสอบ ผู้รับ',
+      recordedBy: 'ทดสอบ ผู้บันทึก',
       notes: '',
     });
 
@@ -156,7 +193,7 @@ describe('sheetsService (Google Sheets mode)', () => {
 
     expect(mockValuesUpdate).toHaveBeenCalledWith({
       spreadsheetId: 'test-sheet-id',
-      range: 'A1:H1',
+      range: 'A1:J1',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [HEADER_ROW] },
     });
@@ -167,9 +204,31 @@ describe('sheetsService (Google Sheets mode)', () => {
       data: {
         values: [
           HEADER_ROW,
-          ['rec-1', 'John Doe', 'john@test.com', 'Engineer', 'Active', 'Good hire', '2026-01-01', '2026-01-02'],
-          ['', '', '', '', '', '', '', ''], // empty row to verify filter
-          ['rec-2', 'Jane Smith', 'jane@test.com', 'Manager', 'Pending', '', '2026-01-03', '2026-01-03'],
+          [
+            'rec-1',
+            'EQ-2026-001',
+            'คอมพิวเตอร์ All-in-One Dell OptiPlex',
+            'อาคาร 1 ชั้น 3 ห้อง 302',
+            'พร้อมใช้งาน',
+            'นายสมเกียรติ ยั่งยืน',
+            'นางสาววิไลลักษณ์ มั่นคง',
+            'สภาพสมบูรณ์',
+            '2026-01-01T08:00:00.000Z',
+            '2026-01-02T09:00:00.000Z',
+          ],
+          ['', '', '', '', '', '', '', '', '', ''], // empty row to verify filter
+          [
+            'rec-2',
+            'EQ-2026-002',
+            'เครื่องพิมพ์เลเซอร์ HP LaserJet',
+            'ฝ่ายสารสนเทศ ชั้น 2',
+            'ส่งซ่อม',
+            'นายอนุรักษ์ รอบรู้',
+            'นายวีระ ศักดิ์ศรี',
+            'ดรัมหมึกมีปัญหา',
+            '2026-01-03T10:00:00.000Z',
+            '2026-01-03T10:00:00.000Z',
+          ],
         ],
       },
     });
@@ -178,16 +237,45 @@ describe('sheetsService (Google Sheets mode)', () => {
     expect(records.length).toBe(2);
     expect(records[0]).toEqual({
       id: 'rec-1',
-      name: 'John Doe',
-      email: 'john@test.com',
-      role: 'Engineer',
-      status: 'Active',
-      notes: 'Good hire',
-      createdAt: '2026-01-01',
-      updatedAt: '2026-01-02',
+      assetCode: 'EQ-2026-001',
+      name: 'คอมพิวเตอร์ All-in-One Dell OptiPlex',
+      location: 'อาคาร 1 ชั้น 3 ห้อง 302',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'นายสมเกียรติ ยั่งยืน',
+      recordedBy: 'นางสาววิไลลักษณ์ มั่นคง',
+      notes: 'สภาพสมบูรณ์',
+      createdAt: '2026-01-01T08:00:00.000Z',
+      updatedAt: '2026-01-02T09:00:00.000Z',
     });
-    expect(records[1].name).toBe('Jane Smith');
-    expect(records[1].status).toBe('Pending');
+    expect(records[1].assetCode).toBe('EQ-2026-002');
+    expect(records[1].name).toBe('เครื่องพิมพ์เลเซอร์ HP LaserJet');
+    expect(records[1].status).toBe('ส่งซ่อม');
+  });
+
+  it('falls back to default status when status in sheet is invalid', async () => {
+    mockValuesGet.mockResolvedValueOnce({
+      data: {
+        values: [
+          HEADER_ROW,
+          [
+            'rec-bad',
+            'EQ-2026-999',
+            'อุปกรณ์สถานะไม่ถูกต้อง',
+            'ชั้น 1',
+            'UnknownStatus',
+            'สมชาย',
+            'วิไลลักษณ์',
+            '',
+            '2026-01-01T08:00:00.000Z',
+            '2026-01-01T08:00:00.000Z',
+          ],
+        ],
+      },
+    });
+
+    const records = await sheetsService.getRecords();
+    expect(records.length).toBe(1);
+    expect(records[0].status).toBe('พร้อมใช้งาน');
   });
 
   it('creates record by appending row to sheet', async () => {
@@ -198,22 +286,35 @@ describe('sheetsService (Google Sheets mode)', () => {
     });
 
     const created = await sheetsService.createRecord({
-      name: 'New Person',
-      email: 'new@test.com',
-      role: 'Analyst',
-      status: 'Active',
-      notes: 'Notes here',
+      assetCode: 'EQ-2026-005',
+      name: 'เครื่องสำรองไฟ APC 1000VA',
+      location: 'ห้อง Server 1',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'นายช่างใหญ่ ประจำตึก',
+      recordedBy: 'นายบันทึก การงาน',
+      notes: 'ติดตั้งแล้ว',
     });
 
     expect(created.id).toBeDefined();
-    expect(created.name).toBe('New Person');
+    expect(created.assetCode).toBe('EQ-2026-005');
+    expect(created.name).toBe('เครื่องสำรองไฟ APC 1000VA');
     expect(mockValuesAppend).toHaveBeenCalledTimes(1);
 
     const callArgs = mockValuesAppend.mock.calls[0][0];
     expect(callArgs.spreadsheetId).toBe('test-sheet-id');
     expect(callArgs.range).toBe(RANGE_ALL);
-    expect(callArgs.requestBody.values[0][1]).toBe('New Person');
-    expect(callArgs.requestBody.values[0][2]).toBe('new@test.com');
+    const rowValues = callArgs.requestBody.values[0];
+    expect(rowValues.length).toBe(10);
+    expect(rowValues[0]).toBe(created.id);
+    expect(rowValues[1]).toBe('EQ-2026-005');
+    expect(rowValues[2]).toBe('เครื่องสำรองไฟ APC 1000VA');
+    expect(rowValues[3]).toBe('ห้อง Server 1');
+    expect(rowValues[4]).toBe('พร้อมใช้งาน');
+    expect(rowValues[5]).toBe('นายช่างใหญ่ ประจำตึก');
+    expect(rowValues[6]).toBe('นายบันทึก การงาน');
+    expect(rowValues[7]).toBe('ติดตั้งแล้ว');
+    expect(rowValues[8]).toBe(created.createdAt);
+    expect(rowValues[9]).toBe(created.updatedAt);
   });
 
   it('updates an existing row by looking up unique id', async () => {
@@ -221,40 +322,80 @@ describe('sheetsService (Google Sheets mode)', () => {
       data: {
         values: [
           HEADER_ROW, // row 1
-          ['rec-1', 'John Doe', 'john@test.com', 'Engineer', 'Active', '', '2026-01-01', '2026-01-01'], // row 2
-          ['rec-2', 'Jane Smith', 'jane@test.com', 'Manager', 'Pending', '', '2026-01-02', '2026-01-02'], // row 3
+          [
+            'rec-1',
+            'EQ-2026-001',
+            'คอมพิวเตอร์ Dell',
+            'ห้อง 101',
+            'พร้อมใช้งาน',
+            'สมศักดิ์',
+            'สมชาย',
+            '',
+            '2026-01-01',
+            '2026-01-01',
+          ], // row 2
+          [
+            'rec-2',
+            'EQ-2026-002',
+            'เครื่องพิมพ์ HP',
+            'ห้อง 102',
+            'พร้อมใช้งาน',
+            'วิไลลักษณ์',
+            'สมชาย',
+            '',
+            '2026-01-02',
+            '2026-01-02',
+          ], // row 3
         ],
       },
     });
 
     const updated = await sheetsService.updateRecord('rec-2', {
-      role: 'Senior Manager',
-      status: 'Active',
+      name: 'เครื่องพิมพ์ HP LaserJet Pro (อัปเกรด)',
+      location: 'ห้อง 205',
+      status: 'กำลังใช้งาน',
+      responsiblePerson: 'วิชัย ปลอดภัย',
     });
 
     expect(updated).not.toBeNull();
     expect(updated?.id).toBe('rec-2');
-    expect(updated?.role).toBe('Senior Manager');
-    expect(updated?.status).toBe('Active');
+    expect(updated?.assetCode).toBe('EQ-2026-002');
+    expect(updated?.name).toBe('เครื่องพิมพ์ HP LaserJet Pro (อัปเกรด)');
+    expect(updated?.location).toBe('ห้อง 205');
+    expect(updated?.status).toBe('กำลังใช้งาน');
+    expect(updated?.responsiblePerson).toBe('วิชัย ปลอดภัย');
 
     expect(mockValuesUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         spreadsheetId: 'test-sheet-id',
-        range: 'A3:H3', // Row 3 in sheet
+        range: 'A3:J3', // Row 3 in sheet with 10 columns
         valueInputOption: 'USER_ENTERED',
       })
     );
+
+    const callArgs = mockValuesUpdate.mock.calls[0][0];
+    const updatedRow = callArgs.requestBody.values[0];
+    expect(updatedRow.length).toBe(10);
+    expect(updatedRow[0]).toBe('rec-2');
+    expect(updatedRow[1]).toBe('EQ-2026-002');
+    expect(updatedRow[2]).toBe('เครื่องพิมพ์ HP LaserJet Pro (อัปเกรด)');
+    expect(updatedRow[3]).toBe('ห้อง 205');
+    expect(updatedRow[4]).toBe('กำลังใช้งาน');
+    expect(updatedRow[5]).toBe('วิชัย ปลอดภัย');
   });
 
   it('returns null when updating non-existent record in Google Sheet', async () => {
     mockValuesGet.mockResolvedValueOnce({
       data: {
-        values: [HEADER_ROW, ['rec-1', 'John', 'j@test.com', 'Dev', 'Active', '', '2026-01-01', '2026-01-01']],
+        values: [
+          HEADER_ROW,
+          ['rec-1', 'EQ-2026-001', 'คอมพิวเตอร์', 'ห้อง 1', 'พร้อมใช้งาน', 'สมศักดิ์', 'สมชาย', '', '2026-01-01', '2026-01-01'],
+        ],
       },
     });
 
     const updated = await sheetsService.updateRecord('rec-999', {
-      status: 'Inactive',
+      status: 'ส่งซ่อม',
     });
     expect(updated).toBeNull();
     expect(mockValuesUpdate).not.toHaveBeenCalled();
@@ -265,8 +406,8 @@ describe('sheetsService (Google Sheets mode)', () => {
       data: {
         values: [
           HEADER_ROW, // index 0 (row 1)
-          ['rec-1', 'John Doe', 'john@test.com', 'Engineer', 'Active', '', '2026-01-01', '2026-01-01'], // index 1 (row 2)
-          ['rec-2', 'Jane Smith', 'jane@test.com', 'Manager', 'Pending', '', '2026-01-02', '2026-01-02'], // index 2 (row 3)
+          ['rec-1', 'EQ-2026-001', 'คอมพิวเตอร์', 'ห้อง 1', 'พร้อมใช้งาน', 'สมศักดิ์', 'สมชาย', '', '2026-01-01', '2026-01-01'], // index 1 (row 2)
+          ['rec-2', 'EQ-2026-002', 'เครื่องพิมพ์', 'ห้อง 2', 'พร้อมใช้งาน', 'วิไลลักษณ์', 'สมชาย', '', '2026-01-02', '2026-01-02'], // index 2 (row 3)
         ],
       },
     });
@@ -296,7 +437,10 @@ describe('sheetsService (Google Sheets mode)', () => {
   it('returns false when deleting a non-existent record in Google Sheet', async () => {
     mockValuesGet.mockResolvedValueOnce({
       data: {
-        values: [HEADER_ROW, ['rec-1', 'John', 'j@test.com', 'Dev', 'Active', '', '2026-01-01', '2026-01-01']],
+        values: [
+          HEADER_ROW,
+          ['rec-1', 'EQ-2026-001', 'คอมพิวเตอร์', 'ห้อง 1', 'พร้อมใช้งาน', 'สมศักดิ์', 'สมชาย', '', '2026-01-01', '2026-01-01'],
+        ],
       },
     });
 
