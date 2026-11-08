@@ -7,6 +7,7 @@ describe('getEnvConfig', () => {
     delete process.env.GOOGLE_SPREADSHEET_ID;
     delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     delete process.env.GOOGLE_PRIVATE_KEY;
+    delete process.env.GOOGLE_DRIVE_FOLDER_ID;
   });
 
   it('reports isConfigured as false when variables are missing', () => {
@@ -76,5 +77,41 @@ describe('getEnvConfig', () => {
 
     const config = getEnvConfig();
     expect(config.spreadsheetId).toBe('16iKFICKjxdpHAzcSZef1ZL8_eYFfMDljop-TiTotKlQ');
+  });
+
+  it('parses raw GOOGLE_DRIVE_FOLDER_ID and reports isDriveConfigured accurately', () => {
+    process.env.GOOGLE_SHEET_ID = 'sheet_123';
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = 'sa@test.iam.gserviceaccount.com';
+    process.env.GOOGLE_PRIVATE_KEY = 'key';
+    process.env.GOOGLE_DRIVE_FOLDER_ID = '1A2b3C4d5E6f7G8h9I0jKlMnOpQrStUvW';
+
+    const config = getEnvConfig();
+    expect(config.isConfigured).toBe(true);
+    expect(config.isDriveConfigured).toBe(true);
+    expect(config.driveFolderId).toBe('1A2b3C4d5E6f7G8h9I0jKlMnOpQrStUvW');
+  });
+
+  it('extracts driveFolderId from full Google Drive folder URL', () => {
+    process.env.GOOGLE_SHEET_ID = 'sheet_123';
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = 'sa@test.iam.gserviceaccount.com';
+    process.env.GOOGLE_PRIVATE_KEY = 'key';
+    process.env.GOOGLE_DRIVE_FOLDER_ID = 'https://drive.google.com/drive/folders/1A2b3C4d5E6f7G8h9I0jKlMnOpQrStUvW?usp=sharing';
+
+    const config = getEnvConfig();
+    expect(config.isDriveConfigured).toBe(true);
+    expect(config.driveFolderId).toBe('1A2b3C4d5E6f7G8h9I0jKlMnOpQrStUvW');
+  });
+
+  it('reports isDriveConfigured as false when folder ID is missing or service account is missing', () => {
+    process.env.GOOGLE_SHEET_ID = 'sheet_123';
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = 'sa@test.iam.gserviceaccount.com';
+    process.env.GOOGLE_PRIVATE_KEY = 'key';
+    // No GOOGLE_DRIVE_FOLDER_ID
+    expect(getEnvConfig().isDriveConfigured).toBe(false);
+
+    // Folder ID exists but no credentials
+    delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+    process.env.GOOGLE_DRIVE_FOLDER_ID = 'folder_123';
+    expect(getEnvConfig().isDriveConfigured).toBe(false);
   });
 });

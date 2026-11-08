@@ -20,6 +20,7 @@ export interface AssetTransaction {
   responsiblePerson: string;
   recordedBy: string;
   notes: string;
+  imageUrl?: string;
 }
 
 export interface AssetRecord {
@@ -31,6 +32,7 @@ export interface AssetRecord {
   responsiblePerson: string;
   recordedBy: string;
   notes: string;
+  imageUrl?: string;
   createdAt: string;
   updatedAt: string;
   transactionCount?: number;
@@ -59,6 +61,7 @@ export interface AssetLogRecord {
   changeSummary: string;
   recordedBy: string;
   notes: string;
+  imageUrl?: string;
 }
 
 // Backward-compatible aliases for downstream modules during transition:

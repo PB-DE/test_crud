@@ -62,16 +62,58 @@ describe('Asset Types & Validation', () => {
       updatedAt: '2026-11-07T00:00:00.000Z',
     };
 
+    const recordWithPhoto: AssetRecord = {
+      ...record,
+      imageUrl: 'https://drive.google.com/uc?id=12345',
+    };
+
     const aliasRecord: RecordItem = record;
-    const aliasInput: CreateRecordInput = input;
-    const updateInput: UpdateAssetInput = { status: 'กำลังใช้งาน' };
+    const aliasInput: CreateAssetInput = {
+      ...input,
+      imageUrl: 'https://drive.google.com/uc?id=12345',
+    };
+    const updateInput: UpdateAssetInput = { status: 'กำลังใช้งาน', imageUrl: 'https://drive.google.com/uc?id=67890' };
     const aliasUpdate: UpdateRecordInput = updateInput;
 
     expect(record.assetCode).toBe('EQ-001');
-    expect(record.status).toBe('พร้อมใช้งาน');
+    expect(recordWithPhoto.imageUrl).toBe('https://drive.google.com/uc?id=12345');
     expect(aliasRecord.id).toBe('uuid-1');
-    expect(aliasInput.name).toBe('โน้ตบุ๊ก Dell Latitude');
-    expect(aliasUpdate.status).toBe('กำลังใช้งาน');
+    expect(aliasInput.imageUrl).toBe('https://drive.google.com/uc?id=12345');
+    expect(aliasUpdate.imageUrl).toBe('https://drive.google.com/uc?id=67890');
+  });
+
+  it('supports optional imageUrl in AssetTransaction and AssetLogRecord', () => {
+    const tx = {
+      id: 'tx-1',
+      timestamp: '2026-11-08T08:00:00.000Z',
+      action: 'บันทึกรายการใหม่' as const,
+      assetCode: 'EQ-001',
+      name: 'กล้อง',
+      location: 'ห้องพัสดุ',
+      status: 'พร้อมใช้งาน' as const,
+      responsiblePerson: 'สมชาย',
+      recordedBy: 'ผู้ดูแลระบบ',
+      notes: '',
+      imageUrl: 'https://drive.google.com/uc?id=photo-1',
+    };
+    expect(tx.imageUrl).toBe('https://drive.google.com/uc?id=photo-1');
+
+    const log: AssetLogRecord = {
+      id: 'log-1',
+      timestamp: '2026-11-08T08:00:00.000Z',
+      action: 'บันทึกรายการใหม่',
+      assetId: 'tx-1',
+      assetCode: 'EQ-001',
+      name: 'กล้อง',
+      locationChange: '- ➔ ห้องพัสดุ',
+      responsibleChange: '- ➔ สมชาย',
+      statusChange: '- ➔ พร้อมใช้งาน',
+      changeSummary: 'บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ',
+      recordedBy: 'ผู้ดูแลระบบ',
+      notes: '',
+      imageUrl: 'https://drive.google.com/uc?id=photo-1',
+    };
+    expect(log.imageUrl).toBe('https://drive.google.com/uc?id=photo-1');
   });
 
   it('allows constructing a valid AssetLogRecord', () => {
