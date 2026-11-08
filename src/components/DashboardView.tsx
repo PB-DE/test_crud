@@ -8,6 +8,7 @@ import {
   Sparkles,
   History,
   ExternalLink,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { AssetRecord, AssetLogRecord } from '@/lib/types';
 import {
@@ -22,6 +23,7 @@ import { RecordTable } from '@/components/RecordTable';
 import { RecordModal, RecordModalFormData } from '@/components/RecordModal';
 import { DeleteDialog } from '@/components/DeleteDialog';
 import { LogHistoryModal } from '@/components/LogHistoryModal';
+import { ReportModal } from '@/components/ReportModal';
 import { Toast, ToastProps } from '@/components/Toast';
 
 export default function DashboardView() {
@@ -57,6 +59,9 @@ export default function DashboardView() {
   const [historyTargetAsset, setHistoryTargetAsset] = useState<AssetRecord | null>(null);
   const [historyLogs, setHistoryLogs] = useState<AssetLogRecord[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+
+  // Status report modal state
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   // Toast notification state
   const [toast, setToast] = useState<Omit<ToastProps, 'onDismiss'> | null>(null);
@@ -348,7 +353,18 @@ export default function DashboardView() {
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap sm:flex-nowrap">
+            <button
+              type="button"
+              onClick={() => setIsReportModalOpen(true)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+              title="ดูรายงานสรุปจำนวนครุภัณฑ์แยกตามสถานะ และส่งออกเป็น PDF"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+              <span className="hidden sm:inline">รายงานสรุป</span>
+              <span className="sm:hidden">รายงาน</span>
+            </button>
+
             <button
               type="button"
               onClick={() => handleOpenHistory()}
@@ -461,6 +477,13 @@ export default function DashboardView() {
           setIsHistoryModalOpen(false);
           setEditingRecord(asset);
         }}
+      />
+
+      {/* Asset Status Summary Report Modal */}
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        records={records}
       />
 
       {/* Footer */}
