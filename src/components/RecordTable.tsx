@@ -146,14 +146,14 @@ export function RecordTable({
             placeholder="ค้นหารหัสครุภัณฑ์, ชื่อรายการ, ตำแหน่ง, ผู้รับผิดชอบ..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-9 py-2 text-sm rounded-xl border border-slate-300 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+            className="w-full pl-9 pr-9 py-2 text-sm rounded-xl border border-slate-300 hover:border-slate-400 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-white shadow-2xs"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => onSearchChange('')}
               aria-label="ล้างคำค้นหา"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full cursor-pointer hover:bg-slate-100 transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -165,10 +165,10 @@ export function RecordTable({
           <button
             type="button"
             onClick={() => onStatusFilterChange('ทั้งหมด')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all active:scale-95 cursor-pointer whitespace-nowrap ${
               isAllFilterActive
                 ? 'bg-slate-900 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100'
+                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
             }`}
           >
             ทั้งหมด
@@ -178,10 +178,10 @@ export function RecordTable({
               key={status}
               type="button"
               onClick={() => onStatusFilterChange(status)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all active:scale-95 cursor-pointer whitespace-nowrap ${
                 statusFilter === status
                   ? 'bg-slate-900 text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100'
+                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
               }`}
             >
               {status}
@@ -398,7 +398,7 @@ export function RecordTable({
               records.map((record) => (
                 <tr
                   key={record.id}
-                  className="hover:bg-slate-50/80 transition-colors group"
+                  className="hover:bg-blue-50/25 transition-colors group"
                 >
                   {/* รหัสและรูปภาพครุภัณฑ์ */}
                   <td className="py-3.5 px-4 sm:px-5 font-mono tabular-nums text-xs sm:text-sm font-semibold text-blue-700 whitespace-nowrap">
@@ -412,7 +412,7 @@ export function RecordTable({
                               title: `${record.assetCode} - ${record.name}`,
                             })
                           }
-                          className="w-9 h-9 rounded-lg overflow-hidden border border-slate-200 shadow-2xs shrink-0 cursor-pointer hover:border-blue-400 hover:ring-2 hover:ring-blue-500/20 transition-all relative group bg-slate-50"
+                          className="w-9 h-9 rounded-lg overflow-hidden border border-slate-200/90 shadow-2xs shrink-0 cursor-pointer hover:border-blue-400 hover:ring-2 hover:ring-blue-500/25 active:scale-95 transition-all relative group bg-slate-100"
                           title="คลิกเพื่อดูรูปภาพขนาดเต็ม"
                           aria-label={`ดูรูปภาพ ${record.name}`}
                         >
@@ -516,7 +516,7 @@ export function RecordTable({
                           onClick={() => onViewHistory(record)}
                           aria-label={`ดูประวัติ ${record.name} (${record.assetCode})`}
                           title="ดูประวัติการเปลี่ยนแปลง"
-                          className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                          className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all active:scale-95 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                         >
                           <History className="w-4 h-4" />
                         </button>
@@ -526,7 +526,7 @@ export function RecordTable({
                         onClick={() => onEdit(record)}
                         aria-label={`แก้ไข ${record.name} (${record.assetCode})`}
                         title="แก้ไขข้อมูลครุภัณฑ์"
-                        className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all active:scale-95 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
@@ -536,7 +536,7 @@ export function RecordTable({
                         disabled={record.status === 'จำหน่าย/ตัดบัญชี'}
                         aria-label={`จำหน่าย/ตัดบัญชี ${record.name} (${record.assetCode})`}
                         title={record.status === 'จำหน่าย/ตัดบัญชี' ? 'ครุภัณฑ์นี้จำหน่าย/ตัดบัญชีแล้ว' : 'จำหน่าย/ตัดบัญชีครุภัณฑ์'}
-                        className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                        className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all active:scale-95 cursor-pointer disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-rose-500/20"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

@@ -358,7 +358,7 @@ export function CameraCaptureModal({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors active:scale-95 cursor-pointer"
               aria-label="ปิดกล้อง"
             >
               <X className="w-5 h-5" />
@@ -528,7 +528,7 @@ export function CameraCaptureModal({
               <button
                 type="button"
                 onClick={handleRetake}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-xs sm:text-sm font-medium text-slate-300 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-800 active:scale-[0.98] text-xs sm:text-sm font-medium text-slate-300 transition-all cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" />
                 ถ่ายใหม่
@@ -537,7 +537,7 @@ export function CameraCaptureModal({
               <button
                 type="button"
                 onClick={handleConfirm}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 active:scale-[0.98] text-xs sm:text-sm font-semibold text-white shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
               >
                 <Check className="w-4 h-4" />
                 ใช้ภาพนี้

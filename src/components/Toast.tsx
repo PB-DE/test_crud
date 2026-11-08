@@ -54,7 +54,7 @@ export function Toast({
       role="alert"
       aria-live="polite"
       className={cn(
-        'flex items-start gap-3 w-full max-w-sm rounded-xl border p-4 shadow-lg transition-all transform ease-out duration-200',
+        'flex items-start gap-3 w-full max-w-sm rounded-xl border p-4 shadow-lg transition-all transform ease-out duration-200 animate-in slide-in-from-bottom-3 fade-in',
         typeConfig.border
       )}
     >

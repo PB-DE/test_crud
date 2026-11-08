@@ -352,7 +352,7 @@ export default function DashboardView() {
             <button
               type="button"
               onClick={() => handleOpenHistory()}
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 shadow-xs transition-colors"
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
               title="ดูประวัติการทำรายการทั้งหมดในระบบ"
             >
               <History className="w-4 h-4 text-slate-500" />
@@ -364,7 +364,7 @@ export default function DashboardView() {
               type="button"
               onClick={() => fetchRecords(true)}
               disabled={isRefreshing || isLoadingRecords}
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 shadow-xs transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
             >
               <RefreshCw
                 className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`}
@@ -375,7 +375,7 @@ export default function DashboardView() {
             <button
               type="button"
               onClick={() => setIsAddModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs shadow-blue-500/10 transition-colors focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs shadow-blue-500/20 transition-all active:scale-[0.98] cursor-pointer focus:ring-2 focus:ring-blue-500/30 focus:outline-none"
             >
               <Plus className="w-4 h-4" />
               <span>บันทึกหรือเปลี่ยนแปลงครุภัณฑ์</span>

@@ -331,7 +331,7 @@ export function RecordModal({
     >
       {/* Backdrop with dirty protection to prevent accidental data loss */}
       <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
         onClick={() => {
           if (isSubmitting) return;
           const isDirty = Boolean(
@@ -764,14 +764,14 @@ export function RecordModal({
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50 cursor-pointer"
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:border-slate-400 rounded-xl hover:bg-slate-50 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
             >
               ยกเลิก
             </button>
             <button
               type="submit"
               disabled={isSubmitting || isUploading}
-              className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors disabled:opacity-50 focus:ring-2 focus:ring-blue-500/20 focus:outline-none cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs shadow-blue-500/20 transition-all active:scale-[0.98] disabled:opacity-50 focus:ring-2 focus:ring-blue-500/20 focus:outline-none cursor-pointer"
             >
               {isSubmitting || isUploading ? (
                 <>

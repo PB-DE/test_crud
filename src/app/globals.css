@@ -21,3 +21,26 @@ body {
   background-color: rgba(59, 130, 246, 0.2);
   color: #1e3a8a;
 }
+
+* {
+  caret-color: #2563eb;
+}
+
+/* Subtle, polished custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.55);
+}

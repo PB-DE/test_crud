@@ -48,18 +48,18 @@ export function DeleteDialog({
     >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
         onClick={() => !isDeleting && onClose()}
       />
 
       {/* Dialog card */}
-      <div className="relative w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-slate-200 z-10 transform transition-all animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl border border-slate-200/90 z-10 transform transition-all animate-in fade-in zoom-in-95 duration-150">
         <button
           type="button"
           onClick={onClose}
           disabled={isDeleting}
           aria-label="ปิดหน้าต่างยืนยัน"
-          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
+          className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors active:scale-95 cursor-pointer disabled:opacity-50"
         >
           <X className="w-5 h-5" />
         </button>
@@ -89,7 +89,7 @@ export function DeleteDialog({
             type="button"
             onClick={onClose}
             disabled={isDeleting}
-            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:border-slate-400 active:scale-[0.98] transition-all cursor-pointer disabled:opacity-50"
           >
             ยกเลิก
           </button>
@@ -97,7 +97,7 @@ export function DeleteDialog({
             type="button"
             onClick={onConfirm}
             disabled={isDeleting}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors disabled:opacity-50 focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 active:scale-[0.98] rounded-xl shadow-xs shadow-rose-500/20 transition-all cursor-pointer disabled:opacity-50 focus:ring-2 focus:ring-rose-500/30 focus:outline-none"
           >
             {isDeleting ? (
               <>
