@@ -1,7 +1,18 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { X, Loader2, PackagePlus, PencilLine } from 'lucide-react';
+import {
+  X,
+  Loader2,
+  PackagePlus,
+  PencilLine,
+  Tag,
+  History,
+  QrCode,
+  Camera,
+  Image as ImageIcon,
+  Trash2,
+} from 'lucide-react';
 import { AssetRecord, AssetStatus, ASSET_STATUSES } from '@/lib/types';
 import { findAssetByCode } from '@/lib/ui-helpers';
 import { QrScannerModal } from './QrScannerModal';
@@ -14,6 +25,7 @@ export interface RecordModalFormData {
   responsiblePerson: string;
   recordedBy: string;
   notes: string;
+  imageUrl?: string;
 }
 
 export type AssetInput = RecordModalFormData;
@@ -52,7 +64,14 @@ export function RecordModal({
     responsiblePerson: '',
     recordedBy: '',
     notes: '',
+    imageUrl: '',
   });
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const [isStatusModified, setIsStatusModified] = useState(false);
   const [isResponsibleModified, setIsResponsibleModified] = useState(false);
@@ -93,7 +112,10 @@ export function RecordModal({
           responsiblePerson: activeRecord.responsiblePerson || '',
           recordedBy: activeRecord.recordedBy || '',
           notes: activeRecord.notes || '',
+          imageUrl: activeRecord.imageUrl || '',
         });
+        setPreviewUrl(activeRecord.imageUrl || null);
+        setSelectedFile(null);
       } else {
         setFormData({
           assetCode: '',
@@ -103,7 +125,10 @@ export function RecordModal({
           responsiblePerson: '',
           recordedBy: '',
           notes: '',
+          imageUrl: '',
         });
+        setPreviewUrl(null);
+        setSelectedFile(null);
       }
       setIsStatusModified(false);
       setIsResponsibleModified(false);
@@ -120,11 +145,15 @@ export function RecordModal({
     }
   }, [isOpen, activeRecord]);
 
-  // Synchronize name and prefilled fields when assetCode changes
+  // Synchronize name, photo, and prefilled fields when assetCode changes
   useEffect(() => {
     if (isEditing) return;
     const existing = findAssetByCode(formData.assetCode, records);
     if (existing) {
+      if (!selectedFile && existing.imageUrl) {
+        setPreviewUrl(existing.imageUrl);
+        setFormData((prev) => ({ ...prev, imageUrl: existing.imageUrl }));
+      }
       setFormData((prev) => {
         const needsName = prev.name !== existing.name;
         const needsStatus =
@@ -146,8 +175,11 @@ export function RecordModal({
               : prev.responsiblePerson,
         };
       });
+    } else if (!selectedFile && !activeRecord) {
+      setPreviewUrl(null);
+      setFormData((prev) => ({ ...prev, imageUrl: '' }));
     }
-  }, [formData.assetCode, records, isEditing, isStatusModified, isResponsibleModified]);
+  }, [formData.assetCode, records, isEditing, isStatusModified, isResponsibleModified, selectedFile, activeRecord]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -208,14 +240,59 @@ export function RecordModal({
     return Object.keys(newErrors).length === 0;
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+    setFormData((prev) => ({ ...prev, imageUrl: objectUrl }));
+  };
+
+  const handleRemovePhoto = () => {
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    setFormData((prev) => ({ ...prev, imageUrl: '' }));
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
+    if (galleryInputRef.current) galleryInputRef.current.value = '';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
     const targetId = existingAsset?.id || activeRecord?.id;
+
+    let finalImageUrl = formData.imageUrl;
+    if (selectedFile) {
+      setIsUploading(true);
+      try {
+        const uploadData = new FormData();
+        uploadData.append('file', selectedFile);
+        uploadData.append('assetCode', formData.assetCode.trim() || 'asset');
+        const uploadRes = await fetch('/api/upload', {
+          method: 'POST',
+          body: uploadData,
+        });
+        const uploadJson = await uploadRes.json();
+        if (uploadRes.ok && uploadJson.success && uploadJson.url) {
+          finalImageUrl = uploadJson.url;
+        }
+      } catch (uploadErr) {
+        console.error('Failed to upload image before saving:', uploadErr);
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
+    const submissionData: RecordModalFormData = {
+      ...formData,
+      imageUrl: finalImageUrl || (existingAsset?.imageUrl || undefined),
+    };
+
     if (onSave) {
-      await onSave(formData, targetId);
+      await onSave(submissionData, targetId);
     } else if (onSubmit) {
-      await onSubmit(formData, targetId);
+      await onSubmit(submissionData, targetId);
     }
   };
 
@@ -528,6 +605,101 @@ export function RecordModal({
             </div>
           </div>
 
+          {/* Asset Photo Section */}
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
+              รูปภาพครุภัณฑ์ <span className="text-slate-400 font-normal lowercase">(ถ่ายภาพ หรือ เลือกจากคลังภาพ)</span>
+            </label>
+
+            {/* Hidden native inputs for mobile camera and gallery */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            {previewUrl ? (
+              <div className="relative border border-slate-200 rounded-xl p-3 bg-slate-50/70 flex items-center gap-3.5">
+                <img
+                  src={previewUrl}
+                  alt="พรีวิวรูปภาพครุภัณฑ์"
+                  className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-xl border border-slate-200 shrink-0 bg-white shadow-2xs"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold text-slate-800 truncate">
+                    {selectedFile
+                      ? selectedFile.name
+                      : existingAsset
+                      ? `รูปล่าสุดของ ${existingAsset.assetCode}`
+                      : 'รูปภาพครุภัณฑ์'}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    {selectedFile
+                      ? `${(selectedFile.size / 1024).toFixed(0)} KB • พร้อมอัปโหลดขึ้น Google Drive`
+                      : 'บันทึกอยู่ในฐานข้อมูล Google Drive แล้ว'}
+                  </div>
+                  <div className="flex items-center gap-3 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
+                    >
+                      <Camera className="w-3.5 h-3.5" />
+                      ถ่ายใหม่
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5" />
+                      เลือกรูปอื่น
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-rose-600 hover:text-rose-800 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      ลบรูป
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 hover:bg-blue-50/60 hover:border-blue-300 hover:text-blue-700 transition-all text-xs sm:text-sm font-medium text-slate-700 cursor-pointer"
+                >
+                  <Camera className="w-4 h-4 text-blue-500" />
+                  <span>ถ่ายภาพสด</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => galleryInputRef.current?.click()}
+                  className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 hover:bg-emerald-50/60 hover:border-emerald-300 hover:text-emerald-700 transition-all text-xs sm:text-sm font-medium text-slate-700 cursor-pointer"
+                >
+                  <ImageIcon className="w-4 h-4 text-emerald-500" />
+                  <span>เลือกจากคลังภาพ</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Notes Field */}
           <div>
             <label
@@ -560,13 +732,13 @@ export function RecordModal({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploading}
               className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors disabled:opacity-50 focus:ring-2 focus:ring-blue-500/20 focus:outline-none cursor-pointer"
             >
-              {isSubmitting ? (
+              {isSubmitting || isUploading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{isEditing || existingAsset ? 'กำลังบันทึก...' : 'กำลังสร้าง...'}</span>
+                  <span>{isUploading ? 'กำลังอัปโหลดรูปภาพ...' : isEditing || existingAsset ? 'กำลังบันทึก...' : 'กำลังสร้าง...'}</span>
                 </>
               ) : (
                 <span>{isEditing || existingAsset ? 'บันทึกการเปลี่ยนแปลง' : 'บันทึกข้อมูล'}</span>

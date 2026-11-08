@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   Trash2,
   Loader2,
+  Camera,
+  ZoomIn,
 } from 'lucide-react';
 import { AssetRecord, AssetLogRecord } from '@/lib/types';
 import {
@@ -37,11 +39,13 @@ export function LogHistoryModal({
   targetAsset,
 }: LogHistoryModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
 
-  // Reset search query when modal opens or targetAsset changes
+  // Reset search query and photo viewer when modal opens or targetAsset changes
   useEffect(() => {
     if (isOpen) {
       setSearchQuery('');
+      setViewingImage(null);
     }
   }, [isOpen, targetAsset]);
 
@@ -49,7 +53,11 @@ export function LogHistoryModal({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose();
+        if (viewingImage) {
+          setViewingImage(null);
+        } else {
+          onClose();
+        }
       }
     };
 
@@ -271,6 +279,34 @@ export function LogHistoryModal({
                             <span>{log.changeSummary || 'ลบรายการออกจากระบบ'}</span>
                           </div>
                         )}
+
+                        {/* Attached Photo */}
+                        {log.imageUrl && (
+                          <div className="pt-1.5">
+                            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1.5">
+                              <Camera className="w-3.5 h-3.5 text-blue-500" />
+                              <span>รูปภาพที่บันทึก:</span>
+                            </div>
+                            <div
+                              onClick={() =>
+                                setViewingImage({
+                                  url: log.imageUrl!,
+                                  title: `${log.assetCode} - ${log.action} (${formatLogDateTime(log.timestamp)})`,
+                                })
+                              }
+                              className="group/photo relative inline-block rounded-xl overflow-hidden border border-slate-200/90 shadow-2xs cursor-pointer hover:border-blue-400 transition-all"
+                            >
+                              <img
+                                src={log.imageUrl}
+                                alt={`รูปภาพ ${log.assetCode}`}
+                                className="w-24 h-24 sm:w-28 sm:h-28 object-cover group-hover/photo:scale-105 transition-transform duration-200 bg-slate-50"
+                              />
+                              <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <ZoomIn className="w-5 h-5 drop-shadow-sm" />
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Footer */}
@@ -313,6 +349,41 @@ export function LogHistoryModal({
           </button>
         </div>
       </div>
+
+      {/* High-Resolution Photo Viewer Lightbox */}
+      {viewingImage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setViewingImage(null)}
+        >
+          <div
+            className="relative max-w-3xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-white">
+              <span className="text-xs sm:text-sm font-medium truncate pr-4">
+                {viewingImage.title}
+              </span>
+              <button
+                type="button"
+                onClick={() => setViewingImage(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-2 flex items-center justify-center overflow-auto max-h-[calc(90vh-60px)]">
+              <img
+                src={viewingImage.url}
+                alt={viewingImage.title}
+                className="max-w-full max-h-[80vh] object-contain rounded-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
