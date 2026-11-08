@@ -13,6 +13,7 @@ import {
   Lock,
   Settings,
   Smartphone,
+  Video,
 } from 'lucide-react';
 
 export const CAMERA_PERMISSION_ERROR =
@@ -55,12 +56,16 @@ export function CameraCaptureModal({
   onCapture,
 }: CameraCaptureModalProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [errorType, setErrorType] = useState<'permission' | 'notFound' | 'general' | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);
-  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [isFlashing, setIsFlashing] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+
+  // Hardware camera devices detection & selection
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -83,12 +88,41 @@ export function CameraCaptureModal({
     }
   }, []);
 
-  // Progressive camera initialization with 3 fallback levels
+  // Enumerate all video input devices (FaceTime HD, iPhone Continuity Camera, Webcams)
+  const refreshDevices = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const vInputs = devices.filter((d) => d.kind === 'videoinput');
+        setVideoDevices(vInputs);
+
+        // Auto-select preferred camera (prefer FaceTime HD Camera on Mac if no device is selected)
+        if (vInputs.length > 0) {
+          setSelectedDeviceId((prev) => {
+            if (prev && vInputs.some((d) => d.deviceId === prev)) return prev;
+            const facetime = vInputs.find((d) => /facetime/i.test(d.label));
+            return facetime ? facetime.deviceId : vInputs[0].deviceId;
+          });
+        }
+      } catch (err) {
+        console.warn('enumerateDevices error:', err);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      refreshDevices();
+    }
+  }, [isOpen, refreshDevices]);
+
+  // Progressive camera initialization with deviceId priority
   useEffect(() => {
     if (!isOpen) {
       stopStream();
       setCapturedDataUrl(null);
       setErrorMessage(null);
+      setErrorDetails(null);
       setErrorType(null);
       setIsInitializing(true);
       return;
@@ -103,6 +137,7 @@ export function CameraCaptureModal({
     let isCancelled = false;
     setIsInitializing(true);
     setErrorMessage(null);
+    setErrorDetails(null);
     setErrorType(null);
 
     const startCamera = async () => {
@@ -119,54 +154,59 @@ export function CameraCaptureModal({
       stopStream();
 
       let stream: MediaStream | null = null;
+      let lastErr: any = null;
 
-      // Attempt 1: Target facing mode with high resolution
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: facingMode },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
-          audio: false,
-        });
-      } catch (firstErr: any) {
-        console.warn('Attempt 1 failed, trying alternative camera...', firstErr);
-
-        // Attempt 2: Alternative facing mode with standard constraints
+      // Attempt 1: Target selected device ID if known (e.g. FaceTime HD Camera)
+      if (selectedDeviceId) {
         try {
-          const altFacing = facingMode === 'environment' ? 'user' : 'environment';
           stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: altFacing },
+            video: { deviceId: { exact: selectedDeviceId } },
             audio: false,
           });
-        } catch (secondErr: any) {
-          console.warn('Attempt 2 failed, trying bare video constraints...', secondErr);
-
-          // Attempt 3: Bare video constraint (accepts any webcam or camera)
+        } catch (devErr: any) {
+          console.warn('Attempt 1 (exact deviceId) failed, trying ideal constraint...', devErr);
+          lastErr = devErr;
           try {
             stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
+              video: { deviceId: { ideal: selectedDeviceId } },
               audio: false,
             });
-          } catch (thirdErr: any) {
-            if (isCancelled) return;
-            setIsInitializing(false);
-            console.error('All camera attempts failed:', thirdErr);
-
-            const errName = thirdErr?.name || firstErr?.name || '';
-            if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
-              setErrorType('permission');
-              setErrorMessage(CAMERA_PERMISSION_ERROR);
-            } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
-              setErrorType('notFound');
-              setErrorMessage(CAMERA_NOT_FOUND_ERROR);
-            } else {
-              setErrorType('general');
-              setErrorMessage(CAMERA_GENERAL_ERROR);
-            }
-            return;
+          } catch (idealErr: any) {
+            console.warn('Attempt 1 (ideal deviceId) failed...', idealErr);
+            lastErr = idealErr;
           }
+        }
+      }
+
+      // Attempt 2: Fallback to bare video constraint (FaceTime HD or first available camera)
+      if (!stream) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        } catch (bareErr: any) {
+          lastErr = bareErr;
+          console.error('All camera attempts failed:', bareErr);
+
+          if (isCancelled) return;
+          setIsInitializing(false);
+
+          const errName = bareErr?.name || lastErr?.name || '';
+          const errMsg = bareErr?.message || lastErr?.message || String(bareErr || lastErr || '');
+          setErrorDetails(`${errName ? `${errName}: ` : ''}${errMsg}`);
+
+          if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+            setErrorType('permission');
+            setErrorMessage(CAMERA_PERMISSION_ERROR);
+          } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+            setErrorType('notFound');
+            setErrorMessage(CAMERA_NOT_FOUND_ERROR);
+          } else {
+            setErrorType('general');
+            setErrorMessage(CAMERA_GENERAL_ERROR);
+          }
+          return;
         }
       }
 
@@ -185,6 +225,9 @@ export function CameraCaptureModal({
         }
       }
       setIsInitializing(false);
+
+      // Refresh devices now that permission is definitely granted so labels appear
+      refreshDevices();
     };
 
     startCamera();
@@ -193,7 +236,7 @@ export function CameraCaptureModal({
       isCancelled = true;
       stopStream();
     };
-  }, [isOpen, facingMode, capturedDataUrl, retryCount, stopStream]);
+  }, [isOpen, selectedDeviceId, capturedDataUrl, retryCount, stopStream, refreshDevices]);
 
   // Handle escape key
   useEffect(() => {
@@ -221,11 +264,6 @@ export function CameraCaptureModal({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    if (facingMode === 'user') {
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
-    }
-
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
     setCapturedDataUrl(dataUrl);
@@ -244,11 +282,6 @@ export function CameraCaptureModal({
     stopStream();
     onCapture(file);
     onClose();
-  };
-
-  // Switch camera between front and back
-  const handleToggleFacingMode = () => {
-    setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
   };
 
   // Native camera fallback (device camera / file input)
@@ -289,29 +322,48 @@ export function CameraCaptureModal({
       <div className="relative w-full max-w-lg bg-slate-900 text-white rounded-3xl shadow-2xl border border-slate-800 z-10 overflow-hidden flex flex-col transform transition-all animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-800/80 flex items-center justify-between shrink-0 bg-slate-900/90">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shrink-0">
               <Camera className="w-4 h-4" />
             </div>
-            <div>
-              <h2 id="camera-modal-title" className="text-sm font-semibold tracking-wide text-white">
+            <div className="min-w-0">
+              <h2 id="camera-modal-title" className="text-sm font-semibold tracking-wide text-white truncate">
                 {capturedDataUrl ? 'ตรวจสอบภาพถ่าย' : 'ถ่ายภาพครุภัณฑ์'}
               </h2>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-400 truncate">
                 {capturedDataUrl
                   ? 'ตรวจสอบความชัดเจนของภาพก่อนบันทึก'
                   : 'จัดตำแหน่งครุภัณฑ์ให้อยู่ตรงกลางกรอบภาพ'}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-            aria-label="ปิดกล้อง"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Camera Switcher Dropdown if multiple devices found */}
+            {videoDevices.length > 1 && !capturedDataUrl && (
+              <select
+                value={selectedDeviceId}
+                onChange={(e) => setSelectedDeviceId(e.target.value)}
+                aria-label="เลือกอุปกรณ์กล้อง"
+                className="text-[11px] bg-slate-800 text-slate-200 border border-slate-700 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 max-w-[140px] truncate cursor-pointer"
+              >
+                {videoDevices.map((d, idx) => (
+                  <option key={d.deviceId || idx} value={d.deviceId}>
+                    {d.label || `กล้องที่ ${idx + 1}`}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+              aria-label="ปิดกล้อง"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Viewfinder / Preview Body */}
@@ -337,9 +389,7 @@ export function CameraCaptureModal({
                 autoPlay
                 muted
                 onLoadedMetadata={() => videoRef.current?.play()}
-                className={`w-full h-full object-cover ${
-                  facingMode === 'user' ? 'scale-x-[-1]' : ''
-                }`}
+                className="w-full h-full object-cover"
               />
 
               {/* Viewfinder Target Framing Brackets */}
@@ -384,9 +434,39 @@ export function CameraCaptureModal({
                   ? 'เบราว์เซอร์ยังไม่ได้รับอนุญาตให้ใช้กล้อง'
                   : 'ไม่สามารถเปิดกล้องได้'}
               </h3>
-              <p className="text-xs text-slate-300 max-w-xs mb-3 leading-relaxed">
+              <p className="text-xs text-slate-300 max-w-xs mb-1.5 leading-relaxed">
                 {errorMessage}
               </p>
+
+              {/* Exact Error Details for instant debugging */}
+              {errorDetails && (
+                <div className="bg-rose-950/50 border border-rose-800/60 rounded-md px-2 py-1 text-[10px] text-rose-300 font-mono break-all max-w-xs mb-3">
+                  {errorDetails}
+                </div>
+              )}
+
+              {/* Camera Switcher Dropdown in error state */}
+              {videoDevices.length > 1 && (
+                <div className="mb-3 w-full max-w-xs text-left">
+                  <label className="block text-[11px] text-slate-400 mb-1">
+                    เลือกสลับอุปกรณ์กล้องอื่น (เช่น FaceTime HD หรือ iPhone Camera):
+                  </label>
+                  <select
+                    value={selectedDeviceId}
+                    onChange={(e) => {
+                      setSelectedDeviceId(e.target.value);
+                      setRetryCount((prev) => prev + 1);
+                    }}
+                    className="w-full text-xs bg-slate-800 text-white border border-slate-700 rounded-lg p-2 outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  >
+                    {videoDevices.map((d, idx) => (
+                      <option key={d.deviceId || idx} value={d.deviceId}>
+                        {d.label || `กล้องที่ ${idx + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Troubleshooting Instructions for Permission */}
               {errorType === 'permission' && (
@@ -416,6 +496,7 @@ export function CameraCaptureModal({
                   type="button"
                   onClick={() => {
                     setErrorMessage(null);
+                    setErrorDetails(null);
                     setErrorType(null);
                     setIsInitializing(true);
                     setRetryCount((prev) => prev + 1);
@@ -465,17 +546,25 @@ export function CameraCaptureModal({
           ) : (
             /* Live Capture Controls */
             <div className="w-full grid grid-cols-3 items-center">
-              {/* Left: Switch camera if available */}
+              {/* Left: Device count badge or switch */}
               <div className="flex justify-start">
-                <button
-                  type="button"
-                  onClick={handleToggleFacingMode}
-                  disabled={isInitializing || Boolean(errorMessage)}
-                  title={facingMode === 'environment' ? 'สลับเป็นกล้องหน้า' : 'สลับเป็นกล้องหลัง'}
-                  className="p-3 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                </button>
+                {videoDevices.length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const curIdx = videoDevices.findIndex((d) => d.deviceId === selectedDeviceId);
+                      const nextIdx = (curIdx + 1) % videoDevices.length;
+                      setSelectedDeviceId(videoDevices[nextIdx].deviceId);
+                    }}
+                    disabled={isInitializing || Boolean(errorMessage)}
+                    title="สลับอุปกรณ์กล้อง"
+                    className="p-3 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 text-xs"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <div />
+                )}
               </div>
 
               {/* Center: Large Shutter Button */}

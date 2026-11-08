@@ -25,8 +25,14 @@ export const QR_VIEWPORT_ID = 'qr-reader-viewport';
 
 export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(true);
   const [retryCount, setRetryCount] = useState(0);
+
+  // Hardware cameras detection & selection
+  const [cameras, setCameras] = useState<Array<{ id: string; label: string }>>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+
   const scannerRef = useRef<any>(null);
   const isScannedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -34,6 +40,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
   useEffect(() => {
     if (!isOpen) {
       setErrorMessage(null);
+      setErrorDetails(null);
       setIsStarting(true);
       isScannedRef.current = false;
       return;
@@ -43,6 +50,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
     isScannedRef.current = false;
     setIsStarting(true);
     setErrorMessage(null);
+    setErrorDetails(null);
 
     const startScanning = async () => {
       try {
@@ -88,20 +96,26 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
         };
 
         // Step 1: Detect available cameras via Html5Qrcode.getCameras()
-        // This prompts for browser permission cleanly with { video: true } and returns real device IDs
+        let targetCameraId = selectedCameraId;
         try {
-          const cameras = await Html5Qrcode.getCameras();
+          const detectedCameras = await Html5Qrcode.getCameras();
           if (!isMounted) return;
 
-          if (cameras && cameras.length > 0) {
-            // Pick rear camera on mobile if available, otherwise pick the first camera (e.g. FaceTime HD Camera on Mac)
-            const rearCamera = cameras.find((c) =>
-              /back|rear|environment|หลัง/i.test(c.label)
-            );
-            const cameraId = rearCamera ? rearCamera.id : cameras[0].id;
+          if (detectedCameras && detectedCameras.length > 0) {
+            setCameras(detectedCameras);
+
+            if (!targetCameraId) {
+              // On Mac, prefer built-in FaceTime HD Camera over sleeping iPhone Continuity Camera
+              const facetime = detectedCameras.find((c) => /facetime/i.test(c.label));
+              const rearCamera = detectedCameras.find((c) =>
+                /back|rear|environment|หลัง/i.test(c.label)
+              );
+              targetCameraId = facetime ? facetime.id : rearCamera ? rearCamera.id : detectedCameras[0].id;
+              setSelectedCameraId(targetCameraId);
+            }
 
             await scanner.start(
-              cameraId,
+              targetCameraId,
               qrConfig,
               handleScanSuccess,
               () => {}
@@ -109,8 +123,11 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
             if (isMounted) setIsStarting(false);
             return;
           }
-        } catch (camErr) {
+        } catch (camErr: any) {
           console.warn('getCameras failed, falling back to facingMode constraints...', camErr);
+          if (camErr?.name || camErr?.message) {
+            setErrorDetails(`${camErr?.name ? `${camErr.name}: ` : ''}${camErr?.message || camErr}`);
+          }
         }
 
         if (!isMounted) return;
@@ -118,23 +135,26 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
         // Step 2: Fallback to facingMode if getCameras had no devices
         try {
           await scanner.start(
-            { facingMode: 'environment' },
+            { facingMode: 'user' },
             qrConfig,
             handleScanSuccess,
             () => {}
           );
-        } catch (envErr) {
+        } catch (userErr: any) {
           if (!isMounted) return;
           try {
             await scanner.start(
-              { facingMode: 'user' },
+              { facingMode: 'environment' },
               qrConfig,
               handleScanSuccess,
               () => {}
             );
-          } catch (finalErr) {
+          } catch (finalErr: any) {
             console.error('All camera start attempts failed:', finalErr);
             if (isMounted) {
+              const errName = finalErr?.name || '';
+              const errMsg = finalErr?.message || String(finalErr || '');
+              setErrorDetails(`${errName ? `${errName}: ` : ''}${errMsg}`);
               setErrorMessage(CAMERA_ERROR_MESSAGE);
               setIsStarting(false);
             }
@@ -143,9 +163,12 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
         }
 
         if (isMounted) setIsStarting(false);
-      } catch (err) {
+      } catch (err: any) {
         console.error('QR scanner start error:', err);
         if (isMounted) {
+          const errName = err?.name || '';
+          const errMsg = err?.message || String(err || '');
+          setErrorDetails(`${errName ? `${errName}: ` : ''}${errMsg}`);
           setErrorMessage(CAMERA_ERROR_MESSAGE);
           setIsStarting(false);
         }
@@ -183,7 +206,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
         cleanup();
       }
     };
-  }, [isOpen, retryCount, onClose, onScan]);
+  }, [isOpen, selectedCameraId, retryCount, onClose, onScan]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -243,27 +266,48 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
       <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 z-10 overflow-hidden flex flex-col transform transition-all animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-600 shrink-0">
               <Camera className="w-5 h-5" />
             </div>
-            <div>
-              <h3 id="qr-scanner-title" className="text-base font-semibold text-slate-900">
+            <div className="min-w-0">
+              <h3 id="qr-scanner-title" className="text-base font-semibold text-slate-900 truncate">
                 สแกน QR Code ครุภัณฑ์
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 truncate">
                 ส่องกล้องไปที่ QR Code บนตัวครุภัณฑ์
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-            aria-label="ปิด"
-          >
-            <X className="w-5 h-5" />
-          </button>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {cameras.length > 1 && (
+              <select
+                value={selectedCameraId}
+                onChange={(e) => {
+                  setSelectedCameraId(e.target.value);
+                  setRetryCount((prev) => prev + 1);
+                }}
+                aria-label="เลือกอุปกรณ์กล้อง"
+                className="text-[10px] bg-slate-100 text-slate-700 border border-slate-300 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 max-w-[110px] truncate cursor-pointer"
+              >
+                {cameras.map((c, idx) => (
+                  <option key={c.id || idx} value={c.id}>
+                    {c.label || `กล้องที่ ${idx + 1}`}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              aria-label="ปิด"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Viewport / Error Body */}
@@ -287,7 +331,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
             {errorMessage && (
               <div
                 data-testid="camera-error-banner"
-                className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-white p-4 text-center z-20 gap-2.5 overflow-y-auto"
+                className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-white p-4 text-center z-20 gap-2 overflow-y-auto"
               >
                 <div className="p-2.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0">
                   <CameraOff className="w-6 h-6" />
@@ -295,6 +339,36 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
                 <p className="text-xs text-slate-200 leading-relaxed max-w-[240px]">
                   {errorMessage}
                 </p>
+
+                {/* Exact error details from browser */}
+                {errorDetails && (
+                  <div className="bg-rose-950/60 border border-rose-800/60 rounded px-2 py-1 text-[10px] text-rose-300 font-mono break-all max-w-[250px]">
+                    {errorDetails}
+                  </div>
+                )}
+
+                {/* Camera switcher in error view if multiple cameras detected */}
+                {cameras.length > 1 && (
+                  <div className="w-full max-w-[250px] text-left">
+                    <label className="block text-[10px] text-slate-400 mb-0.5">
+                      สลับอุปกรณ์กล้อง:
+                    </label>
+                    <select
+                      value={selectedCameraId}
+                      onChange={(e) => {
+                        setSelectedCameraId(e.target.value);
+                        setRetryCount((prev) => prev + 1);
+                      }}
+                      className="w-full text-[11px] bg-slate-900 text-white border border-slate-700 rounded-lg p-1.5 outline-none cursor-pointer"
+                    >
+                      {cameras.map((c, idx) => (
+                        <option key={c.id || idx} value={c.id}>
+                          {c.label || `กล้องที่ ${idx + 1}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* Troubleshooting instructions */}
                 <div className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-left text-[10px] text-slate-300 w-full max-w-[260px] space-y-1">
@@ -304,7 +378,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
                   </div>
                   <div>1. คลิกไอคอน 🔒 / 📷 ที่แถบ URL ด้านบนซ้าย</div>
                   <div>2. เปลี่ยนกล้องเป็น &quot;อนุญาต&quot; (Allow)</div>
-                  <div>3. บน Mac: ตรวจสอบ System Settings &gt; Privacy &gt; Camera</div>
+                  <div>3. หากใช้ FaceTime HD บน Mac ให้เลือก FaceTime HD Camera จากรายการด้านบน</div>
                 </div>
 
                 <div className="flex flex-col gap-1.5 w-full max-w-[260px] mt-1">
@@ -313,6 +387,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
                       type="button"
                       onClick={() => {
                         setErrorMessage(null);
+                        setErrorDetails(null);
                         setIsStarting(true);
                         setRetryCount((prev) => prev + 1);
                       }}
@@ -344,7 +419,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
 
           <div className="mt-3 text-center">
             <p className="text-[11px] text-slate-400">
-              💡 แนะนำ: จัดให้ QR Code อยู่กึ่งกลางกรอบ หรือกด &quot;เลือกรูปภาพ&quot; หากกล้องไม่เปิด
+              💡 แนะนำ: จัดให้ QR Code อยู่กึ่งกลางกรอบ หรือกด &quot;เลือกรูปภาพ&quot; หากต้องการอัปโหลดรูป QR
             </p>
           </div>
         </div>
