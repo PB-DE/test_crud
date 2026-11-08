@@ -16,6 +16,7 @@ import {
 import { AssetRecord, AssetStatus, ASSET_STATUSES } from '@/lib/types';
 import { findAssetByCode } from '@/lib/ui-helpers';
 import { QrScannerModal } from './QrScannerModal';
+import { CameraCaptureModal } from './CameraCaptureModal';
 
 export interface RecordModalFormData {
   assetCode: string;
@@ -70,7 +71,7 @@ export function RecordModal({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const [isStatusModified, setIsStatusModified] = useState(false);
@@ -249,11 +250,17 @@ export function RecordModal({
     setFormData((prev) => ({ ...prev, imageUrl: objectUrl }));
   };
 
+  const handlePhotoCaptured = (file: File) => {
+    setSelectedFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPreviewUrl(objectUrl);
+    setFormData((prev) => ({ ...prev, imageUrl: objectUrl }));
+  };
+
   const handleRemovePhoto = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
     setFormData((prev) => ({ ...prev, imageUrl: '' }));
-    if (cameraInputRef.current) cameraInputRef.current.value = '';
     if (galleryInputRef.current) galleryInputRef.current.value = '';
   };
 
@@ -611,15 +618,7 @@ export function RecordModal({
               รูปภาพครุภัณฑ์ <span className="text-slate-400 font-normal lowercase">(ถ่ายภาพ หรือ เลือกจากคลังภาพ)</span>
             </label>
 
-            {/* Hidden native inputs for mobile camera and gallery */}
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handleFileChange}
-            />
+            {/* Hidden native input for gallery/file picker */}
             <input
               ref={galleryInputRef}
               type="file"
@@ -651,7 +650,7 @@ export function RecordModal({
                   <div className="flex items-center gap-3 mt-2">
                     <button
                       type="button"
-                      onClick={() => cameraInputRef.current?.click()}
+                      onClick={() => setIsCameraModalOpen(true)}
                       className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 cursor-pointer"
                     >
                       <Camera className="w-3.5 h-3.5" />
@@ -682,7 +681,7 @@ export function RecordModal({
               <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 <button
                   type="button"
-                  onClick={() => cameraInputRef.current?.click()}
+                  onClick={() => setIsCameraModalOpen(true)}
                   className="flex items-center justify-center gap-2 p-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/60 hover:bg-blue-50/60 hover:border-blue-300 hover:text-blue-700 transition-all text-xs sm:text-sm font-medium text-slate-700 cursor-pointer"
                 >
                   <Camera className="w-4 h-4 text-blue-500" />
@@ -755,6 +754,13 @@ export function RecordModal({
         onScan={(cleanCode) => {
           handleAssetCodeChange(cleanCode);
         }}
+      />
+
+      {/* Live Camera Viewfinder Modal */}
+      <CameraCaptureModal
+        isOpen={isCameraModalOpen}
+        onClose={() => setIsCameraModalOpen(false)}
+        onCapture={handlePhotoCaptured}
       />
     </div>
   );
