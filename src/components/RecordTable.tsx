@@ -441,8 +441,8 @@ export function RecordTable({
                           <button
                             type="button"
                             onClick={() => onViewHistory(record)}
-                            title={`คลิกเพื่อดูประวัติและ Transaction Log ของ ${record.assetCode}`}
-                            aria-label={`ดูประวัติและ Log ของ ${record.assetCode}`}
+                            title={`คลิกเพื่อดูประวัติของ ${record.assetCode}`}
+                            aria-label={`ดูประวัติของ ${record.assetCode}`}
                             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50/80 border border-blue-200/80 text-blue-700 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-900 transition-all cursor-pointer group/code focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-left"
                           >
                             <Tag className="w-3.5 h-3.5 text-blue-500 group-hover/code:text-blue-700 transition-colors shrink-0" />

@@ -15,6 +15,7 @@ import {
   Loader2,
   Camera,
   ZoomIn,
+  Pencil,
 } from 'lucide-react';
 import { AssetRecord, AssetLogRecord } from '@/lib/types';
 import {
@@ -29,6 +30,7 @@ export interface LogHistoryModalProps {
   logs: AssetLogRecord[];
   isLoading: boolean;
   targetAsset?: AssetRecord | null;
+  onEditAsset?: (asset: AssetRecord) => void;
 }
 
 export function LogHistoryModal({
@@ -37,6 +39,7 @@ export function LogHistoryModal({
   logs,
   isLoading,
   targetAsset,
+  onEditAsset,
 }: LogHistoryModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
@@ -162,14 +165,30 @@ export function LogHistoryModal({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="ปิดหน้าต่างประวัติ"
-            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors shrink-0 ml-2"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0 ml-2">
+            {targetAsset && onEditAsset && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEditAsset(targetAsset);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
+                title={`เปลี่ยนแปลงข้อมูล ${targetAsset.assetCode}`}
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                <span>เปลี่ยนแปลงข้อมูล</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="ปิดหน้าต่างประวัติ"
+              className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Search inside modal */}

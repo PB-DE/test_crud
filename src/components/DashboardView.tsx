@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Sparkles,
   History,
+  ExternalLink,
 } from 'lucide-react';
 import { AssetRecord, AssetLogRecord } from '@/lib/types';
 import {
@@ -327,6 +328,18 @@ export default function DashboardView() {
                   <Sparkles className="w-3 h-3 text-blue-500" />
                   Live Sync
                 </span>
+                {statusData.sheetId && (
+                  <a
+                    href={`https://docs.google.com/spreadsheets/d/${statusData.sheetId}/edit`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="เปิดดู Google Sheet ในแท็บใหม่"
+                    className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium text-slate-500 hover:text-blue-600 hover:bg-slate-100 border border-slate-200 transition-colors"
+                  >
+                    <span>Google Sheets</span>
+                    <ExternalLink className="w-2.5 h-2.5 text-slate-400" />
+                  </a>
+                )}
               </div>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
                 บันทึก ติดตาม และจัดการสถานะครุภัณฑ์ในองค์กร
@@ -370,16 +383,18 @@ export default function DashboardView() {
           </div>
         </header>
 
-        {/* Setup Banner */}
-        <SetupBanner
-          isConfigured={statusData.configured}
-          sheetId={statusData.sheetId}
-          onRefreshStatus={() => {
-            fetchStatus();
-            fetchRecords(true);
-          }}
-          isChecking={isCheckingStatus || isRefreshing}
-        />
+        {/* Setup Banner - ซ่อนเมื่อเชื่อมต่อ Google Sheets สำเร็จแล้ว แสดงเฉพาะกรณีที่ยังไม่ได้ตั้งค่า */}
+        {!statusData.configured && (
+          <SetupBanner
+            isConfigured={statusData.configured}
+            sheetId={statusData.sheetId}
+            onRefreshStatus={() => {
+              fetchStatus();
+              fetchRecords(true);
+            }}
+            isChecking={isCheckingStatus || isRefreshing}
+          />
+        )}
 
         {/* Records Table Component */}
         <RecordTable
@@ -441,6 +456,10 @@ export default function DashboardView() {
         onClose={() => {
           setIsHistoryModalOpen(false);
           setHistoryTargetAsset(null);
+        }}
+        onEditAsset={(asset) => {
+          setIsHistoryModalOpen(false);
+          setEditingRecord(asset);
         }}
       />
 

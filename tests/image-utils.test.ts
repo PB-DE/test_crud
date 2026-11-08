@@ -20,3 +20,4 @@ describe('compressImage Utility', () => {
     expect(result).toBe(smallFile);
   });
 });
+
