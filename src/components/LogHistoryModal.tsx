@@ -121,9 +121,31 @@ export function LogHistoryModal({
         {/* Header */}
         <div className="px-5 py-4 sm:px-6 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
-              <History className="w-5 h-5" />
-            </div>
+            {targetAsset?.imageUrl ? (
+              <div
+                onClick={() =>
+                  setViewingImage({
+                    url: targetAsset.imageUrl!,
+                    title: `${targetAsset.assetCode} - ${targetAsset.name}`,
+                  })
+                }
+                className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl overflow-hidden border border-slate-200/90 shadow-2xs shrink-0 cursor-pointer hover:border-blue-400 hover:ring-2 hover:ring-blue-500/20 transition-all relative group bg-white"
+                title="คลิกเพื่อดูรูปภาพขนาดเต็ม"
+              >
+                <img
+                  src={targetAsset.imageUrl}
+                  alt={targetAsset.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                />
+                <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                  <ZoomIn className="w-4 h-4 drop-shadow-xs" />
+                </div>
+              </div>
+            ) : (
+              <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                <History className="w-5 h-5" />
+              </div>
+            )}
             <div className="min-w-0">
               <h2
                 id="log-history-modal-title"
@@ -280,33 +302,47 @@ export function LogHistoryModal({
                           </div>
                         )}
 
-                        {/* Attached Photo */}
-                        {log.imageUrl && (
-                          <div className="pt-1.5">
-                            <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 mb-1.5">
-                              <Camera className="w-3.5 h-3.5 text-blue-500" />
-                              <span>รูปภาพที่บันทึก:</span>
-                            </div>
-                            <div
-                              onClick={() =>
-                                setViewingImage({
-                                  url: log.imageUrl!,
-                                  title: `${log.assetCode} - ${log.action} (${formatLogDateTime(log.timestamp)})`,
-                                })
-                              }
-                              className="group/photo relative inline-block rounded-xl overflow-hidden border border-slate-200/90 shadow-2xs cursor-pointer hover:border-blue-400 transition-all"
-                            >
-                              <img
-                                src={log.imageUrl}
-                                alt={`รูปภาพ ${log.assetCode}`}
-                                className="w-24 h-24 sm:w-28 sm:h-28 object-cover group-hover/photo:scale-105 transition-transform duration-200 bg-slate-50"
-                              />
-                              <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center text-white">
-                                <ZoomIn className="w-5 h-5 drop-shadow-sm" />
+                        {/* Attached Photo Preview */}
+                        {(() => {
+                          const previewImg =
+                            log.imageUrl ||
+                            (targetAsset && targetAsset.assetCode === log.assetCode
+                              ? targetAsset.imageUrl
+                              : undefined);
+                          if (!previewImg) return null;
+                          return (
+                            <div className="pt-2 flex items-center gap-3">
+                              <div
+                                onClick={() =>
+                                  setViewingImage({
+                                    url: previewImg,
+                                    title: `${log.assetCode} - ${log.action} (${formatLogDateTime(log.timestamp)})`,
+                                  })
+                                }
+                                className="group/photo relative w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-xl overflow-hidden border border-slate-200/90 shadow-2xs cursor-pointer hover:border-blue-400 hover:ring-2 hover:ring-blue-500/20 transition-all bg-slate-50"
+                                title="คลิกเพื่อดูภาพขนาดเต็ม"
+                              >
+                                <img
+                                  src={previewImg}
+                                  alt={`รูปภาพ ${log.assetCode}`}
+                                  className="w-full h-full object-cover group-hover/photo:scale-110 transition-transform duration-200"
+                                />
+                                <div className="absolute inset-0 bg-slate-900/35 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                  <ZoomIn className="w-4 h-4 drop-shadow-sm" />
+                                </div>
+                              </div>
+                              <div className="text-xs text-slate-500 flex flex-col justify-center gap-1">
+                                <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                                  <Camera className="w-3.5 h-3.5 text-blue-500" />
+                                  <span>รูปภาพครุภัณฑ์</span>
+                                </div>
+                                <span className="text-[11px] text-slate-400">
+                                  คลิกที่รูปเพื่อดูภาพขนาดเต็ม
+                                </span>
                               </div>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
                       </div>
 
                       {/* Footer */}

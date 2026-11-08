@@ -48,9 +48,10 @@ export const LOG_HEADER_ROW = [
   'สรุปสิ่งที่เปลี่ยนแปลง',
   'ผู้บันทึก',
   'หมายเหตุ',
+  'รูปภาพ',
 ];
 
-export const RANGE_LOGS_ALL = 'Logs!A:K';
+export const RANGE_LOGS_ALL = 'Logs!A:L';
 
 const INITIAL_DEMO_TRANSACTIONS: AssetTransaction[] = [
   {
@@ -185,8 +186,13 @@ function transactionToRow(tx: AssetTransaction): string[] {
   ];
 }
 
-function rowToLogRecord(row: string[], codeToIdMap?: Map<string, string>): AssetLogRecord {
+function rowToLogRecord(
+  row: string[],
+  codeToRecordMap?: Map<string, AssetRecord>
+): AssetLogRecord {
   const assetCode = row?.[3] ?? '';
+  const directImage = row?.[11]?.trim() || '';
+  const fallbackImage = codeToRecordMap?.get(assetCode)?.imageUrl;
   return {
     id: row?.[0] ?? '',
     timestamp: row?.[1] ?? '',
@@ -199,11 +205,16 @@ function rowToLogRecord(row: string[], codeToIdMap?: Map<string, string>): Asset
     changeSummary: row?.[8] ?? '',
     recordedBy: row?.[9] ?? '',
     notes: row?.[10] ?? '',
-    assetId: codeToIdMap?.get(assetCode) ?? '',
+    assetId: codeToRecordMap?.get(assetCode)?.id ?? '',
+    imageUrl: directImage || fallbackImage || undefined,
   };
 }
 
 function logToRow(log: AssetLogRecord): string[] {
+  let cleanImageUrl = log.imageUrl?.trim() || '';
+  if (cleanImageUrl.startsWith('blob:') || cleanImageUrl.length > 5000) {
+    cleanImageUrl = '';
+  }
   return [
     log.id,
     log.timestamp,
@@ -216,6 +227,7 @@ function logToRow(log: AssetLogRecord): string[] {
     log.changeSummary,
     log.recordedBy,
     log.notes ?? '',
+    cleanImageUrl,
   ];
 }
 
@@ -403,18 +415,29 @@ export async function ensureLogsSheet(
 
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: 'Logs!A1:K1',
+    range: 'Logs!A1:L1',
   });
 
   const values = res?.data?.values;
   if (!values || values.length === 0 || !values[0] || values[0].length === 0) {
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'Logs!A1:K1',
+      range: 'Logs!A1:L1',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [LOG_HEADER_ROW] },
     });
     return [LOG_HEADER_ROW];
+  } else if (values[0].length < 12) {
+    try {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId,
+        range: 'Logs!L1',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [['รูปภาพ']] },
+      });
+    } catch {
+      // non-fatal upgrade
+    }
   }
 
   return values;
@@ -513,15 +536,15 @@ export const sheetsService = {
         } catch {
           // ignore
         }
-        const codeToIdMap = new Map<string, string>();
+        const codeToRecordMap = new Map<string, AssetRecord>();
         for (const r of records) {
-          codeToIdMap.set(r.assetCode, r.id);
+          codeToRecordMap.set(r.assetCode, r);
         }
         let logs = values
           .slice(1)
           .reverse()
           .filter((row) => row && row[0] && row[0].trim().length > 0)
-          .map((row) => rowToLogRecord(row, codeToIdMap));
+          .map((row) => rowToLogRecord(row, codeToRecordMap));
 
         if (filter?.assetId) {
           const targetAsset = records.find((r) => r.id === filter.assetId);
@@ -639,6 +662,7 @@ export const sheetsService = {
       changeSummary: isUpdate ? 'อัปเดตข้อมูลครุภัณฑ์' : 'บันทึกครุภัณฑ์ใหม่เข้าสู่ระบบ',
       recordedBy: newTx.recordedBy,
       notes: newTx.notes || '',
+      imageUrl: newTx.imageUrl || undefined,
     };
 
     try {
@@ -747,6 +771,7 @@ export const sheetsService = {
         timestamp: newTx.timestamp,
         ...diff,
         assetId: existing.id,
+        imageUrl: diff.imageUrl || newTx.imageUrl || existing.imageUrl || undefined,
       };
       try {
         await this.appendLog(logRecord);
@@ -828,6 +853,7 @@ export const sheetsService = {
       changeSummary: 'ลบรายการครุภัณฑ์ออกจากระบบ',
       recordedBy: newTx.recordedBy,
       notes: newTx.notes,
+      imageUrl: existing.imageUrl || undefined,
     };
 
     try {

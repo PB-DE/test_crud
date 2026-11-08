@@ -35,7 +35,7 @@ describe('HEADER_ROW and RANGE_ALL constants', () => {
 });
 
 describe('LOG_HEADER_ROW and RANGE_LOGS_ALL constants', () => {
-  it('defines the correct 11 Thai column headers for change logs', () => {
+  it('defines the correct 12 Thai column headers for change logs', () => {
     expect(LOG_HEADER_ROW).toEqual([
       'Log ID',
       'วันเวลาที่ทำรายการ',
@@ -48,11 +48,12 @@ describe('LOG_HEADER_ROW and RANGE_LOGS_ALL constants', () => {
       'สรุปสิ่งที่เปลี่ยนแปลง',
       'ผู้บันทึก',
       'หมายเหตุ',
+      'รูปภาพ',
     ]);
   });
 
-  it('defines the correct column range Logs!A:K', () => {
-    expect(RANGE_LOGS_ALL).toBe('Logs!A:K');
+  it('defines the correct column range Logs!A:L', () => {
+    expect(RANGE_LOGS_ALL).toBe('Logs!A:L');
   });
 });
 
@@ -962,7 +963,7 @@ describe('sheetsService (Google Sheets mode)', () => {
 
       expect(mockValuesUpdate).toHaveBeenCalledWith({
         spreadsheetId: 'test-sheet-id',
-        range: 'Logs!A1:K1',
+        range: 'Logs!A1:L1',
         valueInputOption: 'USER_ENTERED',
         requestBody: { values: [LOG_HEADER_ROW] },
       });
@@ -1033,6 +1034,7 @@ describe('sheetsService (Google Sheets mode)', () => {
                 'ย้ายสถานที่',
                 'จนท. ตรวจสอบ',
                 'ย้ายชั่วคราว',
+                '',
               ],
             ],
           },

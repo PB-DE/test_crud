@@ -235,6 +235,13 @@ export function computeAssetDiff(
     changes.push('แก้ไขหมายเหตุ');
   }
 
+  const imageChanged =
+    newRecord.imageUrl !== undefined &&
+    newRecord.imageUrl !== (oldRecord.imageUrl || '');
+  if (imageChanged) {
+    changes.push('อัปเดตรูปถ่าย');
+  }
+
   if (changes.length === 0) {
     return null;
   }
@@ -267,5 +274,6 @@ export function computeAssetDiff(
     changeSummary: changes.join(', '),
     recordedBy,
     notes: logNotes,
+    imageUrl: newRecord.imageUrl || oldRecord.imageUrl || undefined,
   };
 }

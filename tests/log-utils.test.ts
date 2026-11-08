@@ -125,6 +125,17 @@ describe('computeAssetDiff', () => {
       'ย้ายสถานที่, เปลี่ยนผู้รับผิดชอบ, เปลี่ยนสถานะ, แก้ไขชื่อ, แก้ไขหมายเหตุ'
     );
   });
+
+  it('detects photo change and passes imageUrl in diff', () => {
+    const diff = computeAssetDiff(
+      base,
+      { imageUrl: 'https://lh3.googleusercontent.com/d/new-photo-id' },
+      'จนท. ถ่ายรูป'
+    );
+    expect(diff).not.toBeNull();
+    expect(diff?.changeSummary).toBe('อัปเดตรูปถ่าย');
+    expect(diff?.imageUrl).toBe('https://lh3.googleusercontent.com/d/new-photo-id');
+  });
 });
 
 describe('projectLatestAssets', () => {
