@@ -30,9 +30,10 @@ export const HEADER_ROW = [
   'ผู้รับผิดชอบ',
   'ผู้บันทึก',
   'หมายเหตุ',
+  'รูปภาพ',
 ];
 
-export const RANGE_ALL = 'A:J';
+export const RANGE_ALL = 'A:K';
 
 export const LOG_HEADER_ROW = [
   'Log ID',
@@ -158,6 +159,7 @@ function rowToTransaction(row: string[]): AssetTransaction {
     responsiblePerson: row?.[7] ?? '',
     recordedBy: row?.[8] ?? '',
     notes: row?.[9] ?? '',
+    imageUrl: row?.[10]?.trim() || undefined,
   };
 }
 
@@ -173,6 +175,7 @@ function transactionToRow(tx: AssetTransaction): string[] {
     tx.responsiblePerson,
     tx.recordedBy,
     tx.notes,
+    tx.imageUrl || '',
   ];
 }
 
@@ -210,6 +213,11 @@ function logToRow(log: AssetLogRecord): string[] {
   ];
 }
 
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/spreadsheets',
+  'https://www.googleapis.com/auth/drive.file',
+];
+
 function getSheetsClient() {
   const config = getEnvConfig();
   if (!config.isConfigured || !config.spreadsheetId || !config.clientEmail || !config.privateKey) {
@@ -219,11 +227,84 @@ function getSheetsClient() {
   const auth = new google.auth.JWT({
     email: config.clientEmail,
     key: config.privateKey,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    scopes: GOOGLE_SCOPES,
   });
 
   const sheets = google.sheets({ version: 'v4', auth });
   return { sheets, spreadsheetId: config.spreadsheetId };
+}
+
+function getDriveClient() {
+  const config = getEnvConfig();
+  if (!config.isDriveConfigured || !config.clientEmail || !config.privateKey || !config.driveFolderId) {
+    return null;
+  }
+
+  const auth = new google.auth.JWT({
+    email: config.clientEmail,
+    key: config.privateKey,
+    scopes: GOOGLE_SCOPES,
+  });
+
+  const drive = google.drive({ version: 'v3', auth });
+  return { drive, folderId: config.driveFolderId };
+}
+
+export async function uploadImageToDrive(
+  buffer: Buffer,
+  fileName: string,
+  mimeType: string
+): Promise<{ fileId: string; url: string }> {
+  const client = getDriveClient();
+  if (!client) {
+    // In demo mode or when Google Drive is unconfigured: return base64 data URL
+    const base64 = buffer.toString('base64');
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+    return {
+      fileId: `demo-file-${Date.now()}`,
+      url: dataUrl,
+    };
+  }
+
+  const { drive, folderId } = client;
+  const { Readable } = await import('stream');
+  const stream = new Readable();
+  stream._read = () => {};
+  stream.push(buffer);
+  stream.push(null);
+
+  const res = await drive.files.create({
+    requestBody: {
+      name: fileName,
+      parents: [folderId],
+    },
+    media: {
+      mimeType,
+      body: stream,
+    },
+    fields: 'id, webViewLink, thumbnailLink',
+  });
+
+  const fileId = res.data.id || '';
+
+  try {
+    await drive.permissions.create({
+      fileId,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone',
+      },
+    });
+  } catch (err) {
+    console.warn('Could not set public permission on Drive file:', err);
+  }
+
+  const url = `https://lh3.googleusercontent.com/d/${fileId}`;
+
+  return {
+    fileId,
+    url,
+  };
 }
 
 async function ensureHeaderRow(sheets: sheets_v4.Sheets, spreadsheetId: string): Promise<string[][]> {
@@ -236,7 +317,7 @@ async function ensureHeaderRow(sheets: sheets_v4.Sheets, spreadsheetId: string):
   if (!values || values.length === 0) {
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'A1:J1',
+      range: 'A1:K1',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [HEADER_ROW] },
     });
@@ -247,7 +328,7 @@ async function ensureHeaderRow(sheets: sheets_v4.Sheets, spreadsheetId: string):
   if (values[0]?.[1] !== HEADER_ROW[1] || values[0].length < HEADER_ROW.length) {
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'A1:J1',
+      range: 'A1:K1',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [HEADER_ROW] },
     });
@@ -487,6 +568,7 @@ export const sheetsService = {
       responsiblePerson: data.responsiblePerson,
       recordedBy: data.recordedBy,
       notes: data.notes || '',
+      imageUrl: data.imageUrl || (isUpdate && existing ? existing.imageUrl : undefined),
     };
 
     const client = getSheetsClient();
@@ -538,6 +620,7 @@ export const sheetsService = {
       responsiblePerson: newTx.responsiblePerson,
       recordedBy: newTx.recordedBy,
       notes: newTx.notes,
+      imageUrl: newTx.imageUrl,
       createdAt: isUpdate && existing ? existing.createdAt : newTx.timestamp,
       updatedAt: newTx.timestamp,
       transactionCount: (existing?.transactionCount || 0) + 1,
@@ -593,6 +676,7 @@ export const sheetsService = {
         ? sanitizedData.recordedBy
         : (existing.recordedBy || 'ระบบ'),
       notes: sanitizedData.notes !== undefined ? sanitizedData.notes : (existing.notes || ''),
+      imageUrl: sanitizedData.imageUrl !== undefined ? sanitizedData.imageUrl : existing.imageUrl,
     };
 
     const client = getSheetsClient();
@@ -644,6 +728,7 @@ export const sheetsService = {
       responsiblePerson: newTx.responsiblePerson,
       recordedBy: newTx.recordedBy,
       notes: newTx.notes,
+      imageUrl: newTx.imageUrl,
       createdAt: existing.createdAt,
       updatedAt: newTx.timestamp,
       transactionCount: (existing.transactionCount || 1) + 1,
@@ -672,6 +757,7 @@ export const sheetsService = {
       responsiblePerson: existing.responsiblePerson,
       recordedBy: recordedBy || existing.recordedBy || 'ระบบ',
       notes: notes || 'จำหน่าย/ตัดบัญชีออกจากระบบ',
+      imageUrl: existing.imageUrl,
     };
 
     const client = getSheetsClient();

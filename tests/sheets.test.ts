@@ -6,12 +6,14 @@ import {
   LOG_HEADER_ROW,
   RANGE_LOGS_ALL,
   ensureLogsSheet,
+  uploadImageToDrive,
 } from '../src/lib/sheets';
 import * as envModule from '../src/lib/env';
 import { google } from 'googleapis';
 
 describe('HEADER_ROW and RANGE_ALL constants', () => {
-  it('defines the correct 10 Thai column headers for asset tracking transaction ledger', () => {
+  it('defines the correct 11 Thai column headers for asset tracking transaction ledger', () => {
+    expect(HEADER_ROW).toHaveLength(11);
     expect(HEADER_ROW).toEqual([
       'ID',
       'วันเวลาที่ทำรายการ',
@@ -23,11 +25,12 @@ describe('HEADER_ROW and RANGE_ALL constants', () => {
       'ผู้รับผิดชอบ',
       'ผู้บันทึก',
       'หมายเหตุ',
+      'รูปภาพ',
     ]);
   });
 
-  it('defines the correct column range A:J', () => {
-    expect(RANGE_ALL).toBe('A:J');
+  it('defines the correct column range A:K', () => {
+    expect(RANGE_ALL).toBe('A:K');
   });
 });
 
@@ -64,6 +67,36 @@ describe('sheetsService (demo mode)', () => {
     expect(logs.length).toBe(2);
     expect(logs[0].action).toBe('แก้ไข/ย้ายตำแหน่ง');
     expect(logs[1].action).toBe('บันทึกรายการใหม่');
+  });
+
+  it('supports creating and updating records with imageUrl in demo mode', async () => {
+    sheetsService.resetDemoStore();
+    const created = await sheetsService.createRecord({
+      assetCode: 'EQ-IMG-001',
+      name: 'กล้องดิจิทัล',
+      location: 'ห้องสื่อ',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'ตากล้อง',
+      recordedBy: 'Admin',
+      notes: '',
+      imageUrl: 'https://drive.google.com/uc?id=img-test-1',
+    });
+
+    expect(created.imageUrl).toBe('https://drive.google.com/uc?id=img-test-1');
+
+    const updated = await sheetsService.updateRecord(created.id, {
+      imageUrl: 'https://drive.google.com/uc?id=img-test-2',
+    });
+
+    expect(updated?.imageUrl).toBe('https://drive.google.com/uc?id=img-test-2');
+  });
+
+  it('uploadImageToDrive returns base64 data URL and demo ID when not configured', async () => {
+    const buffer = Buffer.from('fake image content');
+    const result = await uploadImageToDrive(buffer, 'test.jpg', 'image/jpeg');
+
+    expect(result.fileId).toMatch(/^demo-file-/);
+    expect(result.url).toMatch(/^data:image\/jpeg;base64,/);
   });
 
   it('createRecord, updateRecord, and deleteRecord append transactions without modifying existing rows', async () => {
@@ -525,7 +558,7 @@ describe('sheetsService (Google Sheets mode)', () => {
 
     expect(mockValuesUpdate).toHaveBeenCalledWith({
       spreadsheetId: 'test-sheet-id',
-      range: 'A1:J1',
+      range: 'A1:K1',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [HEADER_ROW] },
     });
@@ -639,7 +672,7 @@ describe('sheetsService (Google Sheets mode)', () => {
     expect(callArgs.spreadsheetId).toBe('test-sheet-id');
     expect(callArgs.range).toBe(RANGE_ALL);
     const rowValues = callArgs.requestBody.values[0];
-    expect(rowValues.length).toBe(10);
+    expect(rowValues.length).toBe(11);
     expect(rowValues[0]).toBe(created.id);
     expect(rowValues[1]).toBe(created.createdAt);
     expect(rowValues[2]).toBe('บันทึกรายการใหม่');
@@ -718,7 +751,7 @@ describe('sheetsService (Google Sheets mode)', () => {
 
     const callArgs = mockValuesAppend.mock.calls[0][0];
     const appendedRow = callArgs.requestBody.values[0];
-    expect(appendedRow.length).toBe(10);
+    expect(appendedRow.length).toBe(11);
     expect(appendedRow[2]).toBe('แก้ไข/ย้ายตำแหน่ง');
     expect(appendedRow[3]).toBe('EQ-2026-002');
     expect(appendedRow[4]).toBe('เครื่องพิมพ์ HP LaserJet Pro (อัปเกรด)');
