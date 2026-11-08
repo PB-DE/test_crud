@@ -283,17 +283,31 @@ export function RecordModal({
         const uploadJson = await uploadRes.json();
         if (uploadRes.ok && uploadJson.success && uploadJson.url) {
           finalImageUrl = uploadJson.url;
+        } else {
+          const errMsg = uploadJson.details || uploadJson.error || 'ไม่สามารถอัปโหลดรูปภาพขึ้น Google Drive ได้';
+          alert(`อัปโหลดรูปภาพไม่สำเร็จ: ${errMsg}`);
+          setIsUploading(false);
+          return;
         }
-      } catch (uploadErr) {
+      } catch (uploadErr: any) {
         console.error('Failed to upload image before saving:', uploadErr);
+        alert(`เกิดข้อผิดพลาดในการเชื่อมต่ออัปโหลดรูปภาพ: ${uploadErr?.message || uploadErr}`);
+        setIsUploading(false);
+        return;
       } finally {
         setIsUploading(false);
       }
     }
 
+    // Never submit local blob: URL or oversized base64 to Google Sheets (Sheets max is 50,000 chars)
+    let sanitizedImageUrl = finalImageUrl;
+    if (sanitizedImageUrl && (sanitizedImageUrl.startsWith('blob:') || sanitizedImageUrl.length > 2000)) {
+      sanitizedImageUrl = '';
+    }
+
     const submissionData: RecordModalFormData = {
       ...formData,
-      imageUrl: finalImageUrl || (existingAsset?.imageUrl || undefined),
+      imageUrl: sanitizedImageUrl || '',
     };
 
     if (onSave) {

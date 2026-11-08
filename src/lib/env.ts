@@ -3,6 +3,7 @@ export interface EnvConfig {
   clientEmail?: string;
   privateKey?: string;
   driveFolderId?: string;
+  driveUploadUrl?: string;
   isConfigured: boolean;
   isDriveConfigured: boolean;
 }
@@ -74,11 +75,13 @@ export function getEnvConfig(): EnvConfig {
   const rawEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const rawKey = process.env.GOOGLE_PRIVATE_KEY;
   const rawDriveFolder = process.env.GOOGLE_DRIVE_FOLDER_ID;
+  const rawDriveUploadUrl = process.env.GOOGLE_DRIVE_UPLOAD_URL;
 
   const spreadsheetId = parseSpreadsheetId(rawSheetId);
   const clientEmail = parseClientEmail(rawEmail);
   const privateKey = parsePrivateKey(rawKey);
   const driveFolderId = parseDriveFolderId(rawDriveFolder);
+  const driveUploadUrl = rawDriveUploadUrl ? stripSurroundingQuotes(rawDriveUploadUrl) : undefined;
 
   const isConfigured = Boolean(
     spreadsheetId &&
@@ -90,12 +93,13 @@ export function getEnvConfig(): EnvConfig {
   );
 
   const isDriveConfigured = Boolean(
-    driveFolderId &&
-    driveFolderId.length > 0 &&
-    clientEmail &&
-    clientEmail.length > 0 &&
-    privateKey &&
-    privateKey.length > 0
+    (driveUploadUrl && driveUploadUrl.length > 0) ||
+    (driveFolderId &&
+      driveFolderId.length > 0 &&
+      clientEmail &&
+      clientEmail.length > 0 &&
+      privateKey &&
+      privateKey.length > 0)
   );
 
   return {
@@ -103,6 +107,7 @@ export function getEnvConfig(): EnvConfig {
     clientEmail,
     privateKey,
     driveFolderId,
+    driveUploadUrl,
     isConfigured,
     isDriveConfigured,
   };

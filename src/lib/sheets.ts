@@ -1,3 +1,4 @@
+import { Readable } from 'stream';
 import { google, sheets_v4 } from 'googleapis';
 import { getEnvConfig } from './env';
 import {
@@ -164,6 +165,11 @@ function rowToTransaction(row: string[]): AssetTransaction {
 }
 
 function transactionToRow(tx: AssetTransaction): string[] {
+  let cleanImageUrl = tx.imageUrl?.trim() || '';
+  // Google Sheets cell character limit is 50,000; reject local blob: URIs and oversize strings
+  if (cleanImageUrl.startsWith('blob:') || cleanImageUrl.length > 5000) {
+    cleanImageUrl = '';
+  }
   return [
     tx.id,
     tx.timestamp,
@@ -175,7 +181,7 @@ function transactionToRow(tx: AssetTransaction): string[] {
     tx.responsiblePerson,
     tx.recordedBy,
     tx.notes,
-    tx.imageUrl || '',
+    cleanImageUrl,
   ];
 }
 
@@ -255,6 +261,39 @@ export async function uploadImageToDrive(
   fileName: string,
   mimeType: string
 ): Promise<{ fileId: string; url: string }> {
+  const config = getEnvConfig();
+
+  // Mode A: Google Apps Script Web App Bridge (for personal @gmail.com accounts)
+  if (config.driveUploadUrl) {
+    const res = await fetch(config.driveUploadUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        base64: buffer.toString('base64'),
+        fileName,
+        mimeType,
+      }),
+      redirect: 'follow',
+    });
+    const rawText = await res.text();
+    let json: any;
+    try {
+      json = JSON.parse(rawText);
+    } catch {
+      throw new Error(
+        `Apps Script did not return JSON. Please verify that the Web App is deployed with 'Who has access: Anyone'. Response preview: ${rawText.slice(0, 200)}`
+      );
+    }
+    if (!res.ok || !json.success) {
+      throw new Error(json.error || `Failed to upload image via Apps Script Web App (status ${res.status})`);
+    }
+    return {
+      fileId: json.fileId,
+      url: json.url,
+    };
+  }
+
+  // Mode B: Google Workspace Shared Drive (Service Account)
   const client = getDriveClient();
   if (!client) {
     // In demo mode or when Google Drive is unconfigured: return base64 data URL
@@ -267,13 +306,10 @@ export async function uploadImageToDrive(
   }
 
   const { drive, folderId } = client;
-  const { Readable } = await import('stream');
-  const stream = new Readable();
-  stream._read = () => {};
-  stream.push(buffer);
-  stream.push(null);
+  const stream = Readable.from(buffer);
 
   const res = await drive.files.create({
+    supportsAllDrives: true,
     requestBody: {
       name: fileName,
       parents: [folderId],

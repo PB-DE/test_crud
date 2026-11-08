@@ -8,6 +8,7 @@ describe('getEnvConfig', () => {
     delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     delete process.env.GOOGLE_PRIVATE_KEY;
     delete process.env.GOOGLE_DRIVE_FOLDER_ID;
+    delete process.env.GOOGLE_DRIVE_UPLOAD_URL;
   });
 
   it('reports isConfigured as false when variables are missing', () => {
@@ -113,5 +114,26 @@ describe('getEnvConfig', () => {
     delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     process.env.GOOGLE_DRIVE_FOLDER_ID = 'folder_123';
     expect(getEnvConfig().isDriveConfigured).toBe(false);
+  });
+
+  it('reports isDriveConfigured as true when GOOGLE_DRIVE_UPLOAD_URL is provided', () => {
+    process.env.GOOGLE_SHEET_ID = 'sheet_123';
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = 'sa@test.iam.gserviceaccount.com';
+    process.env.GOOGLE_PRIVATE_KEY = 'key';
+    process.env.GOOGLE_DRIVE_UPLOAD_URL = 'https://script.google.com/macros/s/AKfycby.../exec';
+
+    const config = getEnvConfig();
+    expect(config.isDriveConfigured).toBe(true);
+    expect(config.driveUploadUrl).toBe('https://script.google.com/macros/s/AKfycby.../exec');
+  });
+
+  it('strips quotes from GOOGLE_DRIVE_UPLOAD_URL', () => {
+    process.env.GOOGLE_SHEET_ID = 'sheet_123';
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = 'sa@test.iam.gserviceaccount.com';
+    process.env.GOOGLE_PRIVATE_KEY = 'key';
+    process.env.GOOGLE_DRIVE_UPLOAD_URL = '"https://script.google.com/macros/s/test/exec"';
+
+    const config = getEnvConfig();
+    expect(config.driveUploadUrl).toBe('https://script.google.com/macros/s/test/exec');
   });
 });

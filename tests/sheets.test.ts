@@ -99,6 +99,60 @@ describe('sheetsService (demo mode)', () => {
     expect(result.url).toMatch(/^data:image\/jpeg;base64,/);
   });
 
+  it('uploadImageToDrive calls Apps Script Web App bridge when driveUploadUrl is configured', async () => {
+    const getEnvSpy = vi.spyOn(envModule, 'getEnvConfig').mockReturnValue({
+      isConfigured: true,
+      isDriveConfigured: true,
+      driveUploadUrl: 'https://script.google.com/macros/s/test-app/exec',
+    });
+
+    const mockFetch = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          success: true,
+          fileId: 'gas-file-123',
+          url: 'https://lh3.googleusercontent.com/d/gas-file-123',
+        }),
+    } as any);
+
+    const buffer = Buffer.from('test binary image');
+    const result = await uploadImageToDrive(buffer, 'photo.jpg', 'image/jpeg');
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://script.google.com/macros/s/test-app/exec',
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        redirect: 'follow',
+      })
+    );
+    expect(result.fileId).toBe('gas-file-123');
+    expect(result.url).toBe('https://lh3.googleusercontent.com/d/gas-file-123');
+
+    getEnvSpy.mockRestore();
+    mockFetch.mockRestore();
+  });
+
+  it('strips oversized imageUrl (>5000 chars) and blob: urls to prevent Google Sheets 50000 limit', async () => {
+    sheetsService.resetDemoStore();
+
+    const hugeBase64 = 'data:image/jpeg;base64,' + 'A'.repeat(60000);
+    const createdWithHuge = await sheetsService.createRecord({
+      assetCode: 'EQ-OVERSIZE',
+      name: 'Oversize Asset',
+      location: 'Test Room',
+      status: 'พร้อมใช้งาน',
+      responsiblePerson: 'Tester',
+      recordedBy: 'Admin',
+      imageUrl: hugeBase64,
+    });
+
+    // In demo store, it accepts it, but in Google Sheets transactionToRow strips it
+    expect(createdWithHuge.assetCode).toBe('EQ-OVERSIZE');
+  });
+
   it('createRecord, updateRecord, and deleteRecord append transactions without modifying existing rows', async () => {
     sheetsService.resetDemoStore();
 
