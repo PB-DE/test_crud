@@ -298,6 +298,78 @@ describe('projectLatestAssets', () => {
     expect(projected[0].location).toBe('Room 109');
     expect(projected[0].responsiblePerson).toBe('Engineer 9');
   });
+
+  it('preserves previous imageUrl when a subsequent update transaction does not specify a new photo', () => {
+    const txs: AssetTransaction[] = [
+      {
+        id: 'tx-1',
+        timestamp: '2026-01-01T10:00:00Z',
+        action: 'บันทึกรายการใหม่',
+        assetCode: 'EQ-PHOTO-RETAIN',
+        name: 'กล้องสำรวจระดับ',
+        location: 'ห้องพัสดุ',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'สมชาย',
+        recordedBy: 'Admin',
+        notes: '',
+        imageUrl: 'https://drive.google.com/uc?id=original-photo',
+      },
+      {
+        id: 'tx-2',
+        timestamp: '2026-01-02T10:00:00Z',
+        action: 'แก้ไข/ย้ายตำแหน่ง',
+        assetCode: 'EQ-PHOTO-RETAIN',
+        name: 'กล้องสำรวจระดับ',
+        location: 'ไซต์งานก่อสร้าง A',
+        status: 'กำลังใช้งาน',
+        responsiblePerson: 'วิศวกร บอย',
+        recordedBy: 'Admin',
+        notes: 'เบิกไปใช้งานภาคสนาม',
+        // imageUrl is undefined in this update
+      },
+    ];
+
+    const projected = projectLatestAssets(txs);
+    expect(projected.length).toBe(1);
+    expect(projected[0].location).toBe('ไซต์งานก่อสร้าง A');
+    expect(projected[0].imageUrl).toBe('https://drive.google.com/uc?id=original-photo');
+  });
+
+  it('updates imageUrl when a subsequent transaction provides a new photo URL', () => {
+    const txs: AssetTransaction[] = [
+      {
+        id: 'tx-1',
+        timestamp: '2026-01-01T10:00:00Z',
+        action: 'บันทึกรายการใหม่',
+        assetCode: 'EQ-PHOTO-NEW',
+        name: 'โต๊ะทำงาน',
+        location: 'ชั้น 1',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'สมชาย',
+        recordedBy: 'Admin',
+        notes: '',
+        imageUrl: 'https://drive.google.com/uc?id=photo-old',
+      },
+      {
+        id: 'tx-2',
+        timestamp: '2026-01-02T10:00:00Z',
+        action: 'แก้ไข/ย้ายตำแหน่ง',
+        assetCode: 'EQ-PHOTO-NEW',
+        name: 'โต๊ะทำงาน',
+        location: 'ชั้น 2',
+        status: 'กำลังใช้งาน',
+        responsiblePerson: 'วิภาดา',
+        recordedBy: 'Admin',
+        notes: 'ถ่ายรูปใหม่หลังจัดห้อง',
+        imageUrl: 'https://drive.google.com/uc?id=photo-new',
+      },
+    ];
+
+    const projected = projectLatestAssets(txs);
+    expect(projected.length).toBe(1);
+    expect(projected[0].location).toBe('ชั้น 2');
+    expect(projected[0].imageUrl).toBe('https://drive.google.com/uc?id=photo-new');
+  });
 });
 
 describe('computeTransactionDiffs', () => {
@@ -363,5 +435,45 @@ describe('computeTransactionDiffs', () => {
     expect(logs[2].action).toBe('บันทึกรายการใหม่');
     expect(logs[2].locationChange).toBe('- ➔ Rack 1');
     expect(logs[2].statusChange).toBe('- ➔ พร้อมใช้งาน');
+  });
+
+  it('attaches imageUrl to AssetLogRecords and notes photo updates in changeSummary', () => {
+    const txs: AssetTransaction[] = [
+      {
+        id: 'tx-1',
+        timestamp: '2026-01-01T10:00:00Z',
+        action: 'บันทึกรายการใหม่',
+        assetCode: 'EQ-DIFF-PHOTO',
+        name: 'อุปกรณ์พกพา',
+        location: 'โต๊ะ 1',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'นารี',
+        recordedBy: 'Admin',
+        notes: '',
+        imageUrl: 'https://drive.google.com/uc?id=img-01',
+      },
+      {
+        id: 'tx-2',
+        timestamp: '2026-01-02T10:00:00Z',
+        action: 'แก้ไข/ย้ายตำแหน่ง',
+        assetCode: 'EQ-DIFF-PHOTO',
+        name: 'อุปกรณ์พกพา',
+        location: 'โต๊ะ 1',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'นารี',
+        recordedBy: 'Admin',
+        notes: '',
+        imageUrl: 'https://drive.google.com/uc?id=img-02',
+      },
+    ];
+
+    const logs = computeTransactionDiffs(txs);
+    expect(logs.length).toBe(2);
+    // Newest log (tx-2): photo updated
+    expect(logs[0].imageUrl).toBe('https://drive.google.com/uc?id=img-02');
+    expect(logs[0].changeSummary).toContain('อัปเดตรูปถ่าย');
+
+    // Oldest log (tx-1): initial photo
+    expect(logs[1].imageUrl).toBe('https://drive.google.com/uc?id=img-01');
   });
 });

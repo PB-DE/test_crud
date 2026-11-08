@@ -20,6 +20,7 @@ export function projectLatestAssets(transactions: AssetTransaction[]): AssetReco
   const countMap = new Map<string, number>();
   const firstSeenMap = new Map<string, string>();
   const firstIdMap = new Map<string, string>();
+  const latestImageMap = new Map<string, string>();
 
   // Process transactions chronologically to trace first created and count
   const sortedAsc = [...transactions].sort(
@@ -35,6 +36,9 @@ export function projectLatestAssets(transactions: AssetTransaction[]): AssetReco
       firstSeenMap.set(key, tx.timestamp);
       firstIdMap.set(key, tx.id);
     }
+    if (tx.imageUrl && tx.imageUrl.trim().length > 0) {
+      latestImageMap.set(key, tx.imageUrl.trim());
+    }
     map.set(key, tx);
   }
 
@@ -42,9 +46,11 @@ export function projectLatestAssets(transactions: AssetTransaction[]): AssetReco
   return Array.from(map.values())
     .map((latestTx) => {
       const key = normalizeAssetCode(latestTx.assetCode);
+      const imageUrl = latestImageMap.get(key) || (latestTx.imageUrl?.trim() || undefined);
       return {
         ...latestTx,
         id: firstIdMap.get(key) || latestTx.id,
+        imageUrl,
         createdAt: firstSeenMap.get(key) || latestTx.timestamp,
         updatedAt: latestTx.timestamp,
         transactionCount: countMap.get(key) || 1,
@@ -105,6 +111,7 @@ export function computeTransactionDiffs(transactions: AssetTransaction[]): Asset
                 : 'บันทึกรายการ',
           recordedBy: tx.recordedBy || '',
           notes: tx.notes || '',
+          imageUrl: tx.imageUrl || undefined,
         });
       } else {
         const changes: string[] = [];
@@ -123,6 +130,9 @@ export function computeTransactionDiffs(transactions: AssetTransaction[]): Asset
 
         const notesChanged = tx.notes !== prevTx.notes;
         if (notesChanged) changes.push('แก้ไขหมายเหตุ');
+
+        const imageChanged = Boolean(tx.imageUrl && tx.imageUrl !== prevTx.imageUrl);
+        if (imageChanged) changes.push('อัปเดตรูปถ่าย');
 
         const isDecommission = tx.action === 'จำหน่าย/ตัดบัญชี';
         const summary = isDecommission
@@ -156,6 +166,7 @@ export function computeTransactionDiffs(transactions: AssetTransaction[]): Asset
           changeSummary: summary,
           recordedBy: tx.recordedBy || '',
           notes: tx.notes || '',
+          imageUrl: tx.imageUrl || prevTx.imageUrl || undefined,
         });
       }
 
