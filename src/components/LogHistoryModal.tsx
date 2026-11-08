@@ -152,13 +152,13 @@ export function LogHistoryModal({
                 className="text-base sm:text-lg font-bold text-slate-900 leading-tight truncate"
               >
                 {targetAsset
-                  ? `ประวัติการเปลี่ยนแปลง: ${targetAsset.assetCode} ${targetAsset.name}`
-                  : 'ประวัติการทำรายการทั้งหมด'}
+                  ? `ประวัติ: ${targetAsset.assetCode} ${targetAsset.name}`
+                  : 'ประวัติการทำรายการ'}
               </h2>
               <p className="text-xs text-slate-500 mt-0.5 truncate">
                 {targetAsset
-                  ? 'แสดงประวัติการทำรายการทั้งหมดของครุภัณฑ์ชิ้นนี้'
-                  : 'บันทึกประวัติการสร้าง แก้ไข ย้ายตำแหน่ง และลบข้อมูลทั้งหมด'}
+                  ? 'บันทึกประวัติการเปลี่ยนแปลงของครุภัณฑ์ชิ้นนี้'
+                  : 'บันทึกประวัติการเปลี่ยนแปลงทั้งหมดในระบบ'}
               </p>
             </div>
           </div>
@@ -247,7 +247,7 @@ export function LogHistoryModal({
                           {/* Asset code & name if in all-logs mode or different asset */}
                           {(!targetAsset || targetAsset.assetCode !== log.assetCode) && (
                             <div className="inline-flex items-center gap-1.5 text-xs text-slate-700 font-medium">
-                              <span className="font-mono text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60">
+                              <span className="font-mono tabular-nums text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200/60">
                                 {log.assetCode}
                               </span>
                               <span className="truncate max-w-[200px] text-slate-600 font-normal">
@@ -258,7 +258,7 @@ export function LogHistoryModal({
                         </div>
 
                         {/* Timestamp */}
-                        <div className="flex items-center gap-1.5 text-xs text-slate-400">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-400 tabular-nums">
                           <Clock className="w-3.5 h-3.5" />
                           <span>{formatLogDateTime(log.timestamp)}</span>
                         </div>

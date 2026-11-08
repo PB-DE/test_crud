@@ -275,7 +275,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
                 สแกน QR Code ครุภัณฑ์
               </h3>
               <p className="text-xs text-slate-500 truncate">
-                ส่องกล้องไปที่ QR Code บนตัวครุภัณฑ์
+                ส่องกล้องไปที่ QR Code ของครุภัณฑ์
               </p>
             </div>
           </div>
@@ -376,9 +376,9 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
                     <Lock className="w-3 h-3" />
                     วิธีเปิดสิทธิ์กล้องในเบราว์เซอร์:
                   </div>
-                  <div>1. คลิกไอคอน 🔒 / 📷 ที่แถบ URL ด้านบนซ้าย</div>
-                  <div>2. เปลี่ยนกล้องเป็น &quot;อนุญาต&quot; (Allow)</div>
-                  <div>3. หากใช้ FaceTime HD บน Mac ให้เลือก FaceTime HD Camera จากรายการด้านบน</div>
+                  <div>1. คลิกไอคอนความปลอดภัยที่แถบ URL ด้านบน</div>
+                  <div>2. ตั้งค่ากล้องเป็น &quot;อนุญาต&quot; (Allow)</div>
+                  <div>3. สลับเลือก FaceTime HD หรือกล้องที่ต้องการจากเมนูด้านบน</div>
                 </div>
 
                 <div className="flex flex-col gap-1.5 w-full max-w-[260px] mt-1">
@@ -419,7 +419,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
 
           <div className="mt-3 text-center">
             <p className="text-[11px] text-slate-400">
-              💡 แนะนำ: จัดให้ QR Code อยู่กึ่งกลางกรอบ หรือกด &quot;เลือกรูปภาพ&quot; หากต้องการอัปโหลดรูป QR
+              จัดตำแหน่ง QR Code ให้อยู่กึ่งกลางกรอบ
             </p>
           </div>
         </div>

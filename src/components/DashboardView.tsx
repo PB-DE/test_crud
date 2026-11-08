@@ -329,7 +329,7 @@ export default function DashboardView() {
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                Asset Tracking System — บันทึก ติดตาม และจัดการสถานะครุภัณฑ์
+                บันทึก ติดตาม และจัดการสถานะครุภัณฑ์ในองค์กร
               </p>
             </div>
           </div>
@@ -343,7 +343,7 @@ export default function DashboardView() {
               title="ดูประวัติการทำรายการทั้งหมดในระบบ"
             >
               <History className="w-4 h-4 text-slate-500" />
-              <span className="hidden sm:inline">ดูประวัติการเปลี่ยนแปลงทั้งหมด</span>
+              <span className="hidden sm:inline">ประวัติการเปลี่ยนแปลง</span>
               <span className="sm:hidden">ประวัติ</span>
             </button>
 
@@ -356,7 +356,7 @@ export default function DashboardView() {
               <RefreshCw
                 className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`}
               />
-              <span className="hidden sm:inline">รีเฟรชข้อมูล</span>
+              <span className="hidden sm:inline">รีเฟรช</span>
             </button>
 
             <button
@@ -365,7 +365,7 @@ export default function DashboardView() {
               className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs shadow-blue-500/10 transition-colors focus:ring-2 focus:ring-blue-500/20 focus:outline-none"
             >
               <Plus className="w-4 h-4" />
-              <span>+ บันทึกหรือเปลี่ยนแปลงครุภัณฑ์</span>
+              <span>บันทึกหรือเปลี่ยนแปลงครุภัณฑ์</span>
             </button>
           </div>
         </header>
@@ -448,12 +448,10 @@ export default function DashboardView() {
       <footer className="border-t border-slate-200/80 bg-white py-4 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
           <div>
-            ระบบติดตามตำแหน่งครุภัณฑ์ในองค์กร (Asset Tracking System) &bull; พัฒนาด้วย Next.js 15, Tailwind CSS และ Google Sheets API
+            ระบบติดตามตำแหน่งครุภัณฑ์ในองค์กร (Asset Tracking System)
           </div>
-          <div className="flex items-center gap-4 text-slate-400">
-            <span>Production Ready</span>
-            <span>&bull;</span>
-            <span>Google Sheets Live Database</span>
+          <div className="flex items-center gap-2 text-slate-400">
+            <span>เชื่อมต่อฐานข้อมูล Google Sheets แบบเรียลไทม์</span>
           </div>
         </div>
       </footer>

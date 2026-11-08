@@ -367,8 +367,8 @@ export function RecordTable({
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-500 mt-1 mb-5 leading-relaxed">
                       {searchQuery || !isAllFilterActive
-                        ? 'ไม่พบรายการที่ตรงกับคำค้นหาหรือตัวกรองที่เลือก ลองล้างตัวกรองเพื่อค้นหาใหม่'
-                        : 'ยังไม่มีรายการครุภัณฑ์ในระบบ เริ่มต้นด้วยการเพิ่มครุภัณฑ์ชิ้นแรก'}
+                        ? 'ไม่พบข้อมูลครุภัณฑ์ที่ตรงกับเงื่อนไขการค้นหา'
+                        : 'ยังไม่มีข้อมูลครุภัณฑ์ในระบบ'}
                     </p>
                     {searchQuery || !isAllFilterActive ? (
                       <button
@@ -387,7 +387,7 @@ export function RecordTable({
                         onClick={onAddNew}
                         className="px-4 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors"
                       >
-                        + บันทึกหรือเปลี่ยนแปลงครุภัณฑ์
+                        บันทึกครุภัณฑ์
                       </button>
                     )}
                   </div>
@@ -401,7 +401,7 @@ export function RecordTable({
                   className="hover:bg-slate-50/80 transition-colors group"
                 >
                   {/* รหัสและรูปภาพครุภัณฑ์ */}
-                  <td className="py-3.5 px-4 sm:px-5 font-mono text-xs sm:text-sm font-semibold text-blue-700 whitespace-nowrap">
+                  <td className="py-3.5 px-4 sm:px-5 font-mono tabular-nums text-xs sm:text-sm font-semibold text-blue-700 whitespace-nowrap">
                     <div className="flex items-center gap-2.5">
                       {record.imageUrl ? (
                         <button
@@ -503,7 +503,7 @@ export function RecordTable({
                   </td>
 
                   {/* อัปเดตล่าสุด */}
-                  <td className="py-3.5 px-4 sm:px-5 text-slate-500 text-xs sm:text-sm whitespace-nowrap">
+                  <td className="py-3.5 px-4 sm:px-5 text-slate-500 tabular-nums text-xs sm:text-sm whitespace-nowrap">
                     {formatDate(record.updatedAt || record.createdAt)}
                   </td>
 
@@ -552,8 +552,8 @@ export function RecordTable({
       {/* Footer Summary */}
       <div className="px-4 sm:px-6 py-3 border-t border-slate-200/80 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
         <div>
-          แสดง <span className="font-semibold text-slate-700">{records.length}</span> จากทั้งหมด{' '}
-          <span className="font-semibold text-slate-700">{allRecordsCount}</span> รายการ
+          แสดง <span className="font-semibold text-slate-700 tabular-nums">{records.length}</span> จากทั้งหมด{' '}
+          <span className="font-semibold text-slate-700 tabular-nums">{allRecordsCount}</span> รายการ
           {searchQuery && (
             <span className="ml-1 text-slate-400">
               (กรองจากคำค้นหา)
@@ -561,7 +561,7 @@ export function RecordTable({
           )}
         </div>
         <div className="text-slate-400 text-[11px]">
-          คลิกที่หัวตารางเพื่อจัดเรียงข้อมูล น้อยไปมาก / มากไปน้อย
+          คลิกหัวตารางเพื่อสลับการจัดเรียง
         </div>
       </div>
 

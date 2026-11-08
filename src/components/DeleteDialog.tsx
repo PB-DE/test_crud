@@ -74,13 +74,12 @@ export function DeleteDialog({
               id="delete-dialog-title"
               className="text-lg font-semibold text-slate-900"
             >
-              ยืนยันการจำหน่าย/ตัดบัญชีครุภัณฑ์
+              ยืนยันการจำหน่าย/ตัดบัญชี
             </h3>
             <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">
-              คุณแน่ใจหรือไม่ว่าต้องการจำหน่าย/ตัดบัญชีรายการ{' '}
+              คุณต้องการจำหน่าย/ตัดบัญชีรายการ{' '}
               <span className="font-semibold text-slate-900">{record.name}</span>{' '}
-              (รหัส: <code className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded font-semibold text-slate-800">{record.assetCode}</code>)?
-              รายการจะถูกบันทึกสถานะเป็น &quot;จำหน่าย/ตัดบัญชี&quot; ลงใน Transaction Ledger โดยยังคงประวัติไว้ครบถ้วน
+              (รหัส <code className="font-mono tabular-nums text-xs bg-slate-100 px-1.5 py-0.5 rounded font-semibold text-slate-800">{record.assetCode}</code>) ใช่หรือไม่? ระบบจะบันทึกสถานะลงในประวัติโดยคงข้อมูลเดิมไว้ครบถ้วน
             </p>
           </div>
         </div>

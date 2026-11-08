@@ -477,15 +477,15 @@ export function CameraCaptureModal({
                   </div>
                   <div className="flex items-start gap-1.5 text-slate-300">
                     <span className="text-blue-400 font-bold shrink-0">1.</span>
-                    <span>คลิกไอคอน <strong>🔒 กุญแจ</strong> หรือ <strong>📷 กล้อง</strong> ที่แถบ URL ด้านบนซ้าย</span>
+                    <span>คลิกไอคอนความปลอดภัยที่แถบ URL ด้านบน</span>
                   </div>
                   <div className="flex items-start gap-1.5 text-slate-300">
                     <span className="text-blue-400 font-bold shrink-0">2.</span>
-                    <span>เปลี่ยนหัวข้อ <strong>กล้อง (Camera)</strong> เป็น <strong>&quot;อนุญาต&quot; (Allow)</strong></span>
+                    <span>ตั้งค่าหัวข้อ <strong>กล้อง (Camera)</strong> เป็น <strong>&quot;อนุญาต&quot; (Allow)</strong></span>
                   </div>
                   <div className="flex items-start gap-1.5 text-slate-300">
                     <span className="text-blue-400 font-bold shrink-0">3.</span>
-                    <span>บน Mac: ตรวจสอบที่ <em>System Settings &gt; Privacy &gt; Camera</em> ว่าเปิดให้เบราว์เซอร์แล้ว</span>
+                    <span>บน Mac: ตรวจสอบ <em>System Settings &gt; Privacy &gt; Camera</em> ว่าอนุญาตให้เบราว์เซอร์แล้ว</span>
                   </div>
                 </div>
               )}
