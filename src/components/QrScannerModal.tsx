@@ -1,7 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Camera, CameraOff, Loader2 } from 'lucide-react';
+import {
+  X,
+  Camera,
+  CameraOff,
+  Loader2,
+  RefreshCw,
+  Image as ImageIcon,
+  Lock,
+} from 'lucide-react';
 import { cleanQrPayload } from '@/lib/ui-helpers';
 
 export interface QrScannerModalProps {
@@ -18,8 +26,10 @@ export const QR_VIEWPORT_ID = 'qr-reader-viewport';
 export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
   const scannerRef = useRef<any>(null);
   const isScannedRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -149,7 +159,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
 
         setIsStarting(false);
       } catch (err) {
-        console.error('Failed to initialize QR scanner:', err);
+        console.error('QR scanner start error:', err);
         if (isMounted) {
           setErrorMessage(CAMERA_ERROR_MESSAGE);
           setIsStarting(false);
@@ -157,22 +167,26 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
       }
     };
 
-    const timer = setTimeout(() => {
-      startScanning();
-    }, 50);
+    startScanning();
 
     return () => {
-      clearTimeout(timer);
       isMounted = false;
-      const scanner = scannerRef.current;
-      if (scanner) {
+      if (scannerRef.current) {
+        const scanner = scannerRef.current;
+        scannerRef.current = null;
         const cleanup = async () => {
           try {
-            if (typeof scanner.getState === 'function' && scanner.getState() === 2) {
+            const { Html5QrcodeScannerState } = await import('html5-qrcode');
+            if (
+              typeof scanner.getState === 'function' &&
+              scanner.getState() === Html5QrcodeScannerState.SCANNING
+            ) {
+              await scanner.stop();
+            } else if (typeof scanner.stop === 'function') {
               await scanner.stop();
             }
           } catch (stopErr) {
-            console.warn('Error stopping camera during cleanup:', stopErr);
+            console.warn('Error stopping scanner on unmount:', stopErr);
           } finally {
             try {
               scanner.clear();
@@ -184,7 +198,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
         cleanup();
       }
     };
-  }, [isOpen, onClose, onScan]);
+  }, [isOpen, retryCount, onClose, onScan]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -196,6 +210,26 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  // Decode QR from static image file fallback
+  const handleFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const html5QrCode = scannerRef.current || new Html5Qrcode(QR_VIEWPORT_ID);
+      const decodedText = await html5QrCode.scanFile(file, true);
+      const cleaned = cleanQrPayload(decodedText);
+      if (cleaned) {
+        onScan(cleaned);
+        onClose();
+      }
+    } catch (err) {
+      console.warn('QR file scan error:', err);
+      alert('ไม่สามารถอ่าน QR Code จากรูปภาพนี้ได้ กรุณาลองใช้รูปอื่น');
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -205,6 +239,15 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
       aria-labelledby="qr-scanner-title"
       className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6"
     >
+      {/* Hidden File Picker Fallback for QR Code Image */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileScan}
+      />
+
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
@@ -240,7 +283,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
 
         {/* Viewport / Error Body */}
         <div className="p-5 flex flex-col items-center">
-          <div className="relative w-full aspect-square max-h-[280px] bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center border border-slate-800 shadow-inner">
+          <div className="relative w-full aspect-square max-h-[300px] bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center border border-slate-800 shadow-inner">
             {/* Viewport for Html5Qrcode */}
             <div
               id={QR_VIEWPORT_ID}
@@ -255,32 +298,68 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
               </div>
             )}
 
-            {/* Error Message */}
+            {/* Error Message & Troubleshooting Guide */}
             {errorMessage && (
               <div
                 data-testid="camera-error-banner"
-                className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-white p-6 text-center z-20 gap-3"
+                className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-white p-4 text-center z-20 gap-2.5 overflow-y-auto"
               >
-                <div className="p-3 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                  <CameraOff className="w-8 h-8" />
+                <div className="p-2.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 shrink-0">
+                  <CameraOff className="w-6 h-6" />
                 </div>
                 <p className="text-xs text-slate-200 leading-relaxed max-w-[240px]">
                   {errorMessage}
                 </p>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="mt-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-xl border border-slate-700 transition-colors cursor-pointer shadow-xs"
-                >
-                  พิมพ์รหัสด้วยตนเอง
-                </button>
+
+                {/* Troubleshooting instructions */}
+                <div className="bg-slate-900 border border-slate-800 rounded-lg p-2.5 text-left text-[10px] text-slate-300 w-full max-w-[260px] space-y-1">
+                  <div className="font-semibold text-amber-300 flex items-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    วิธีเปิดสิทธิ์กล้องในเบราว์เซอร์:
+                  </div>
+                  <div>1. คลิกไอคอน 🔒 / 📷 ที่แถบ URL ด้านบนซ้าย</div>
+                  <div>2. เปลี่ยนกล้องเป็น &quot;อนุญาต&quot; (Allow)</div>
+                  <div>3. บน Mac: ตรวจสอบ System Settings &gt; Privacy &gt; Camera</div>
+                </div>
+
+                <div className="flex flex-col gap-1.5 w-full max-w-[260px] mt-1">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setErrorMessage(null);
+                        setIsStarting(true);
+                        setRetryCount((prev) => prev + 1);
+                      }}
+                      className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium rounded-lg border border-slate-700 transition-colors cursor-pointer"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      ลองใหม่
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                    >
+                      <ImageIcon className="w-3 h-3" />
+                      เลือกรูปภาพ
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white text-[11px] font-medium rounded-lg border border-slate-800 transition-colors cursor-pointer"
+                  >
+                    พิมพ์รหัสด้วยตนเอง
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
           <div className="mt-3 text-center">
             <p className="text-[11px] text-slate-400">
-              💡 แนะนำ: จัดให้ QR Code อยู่กึ่งกลางกรอบ และมีแสงสว่างเพียงพอ
+              💡 แนะนำ: จัดให้ QR Code อยู่กึ่งกลางกรอบ หรือกด &quot;เลือกรูปภาพ&quot; หากกล้องไม่เปิด
             </p>
           </div>
         </div>
