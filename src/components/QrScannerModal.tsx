@@ -87,7 +87,35 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
           }
         };
 
-        // Attempt 1: Rear camera (environment)
+        // Step 1: Detect available cameras via Html5Qrcode.getCameras()
+        // This prompts for browser permission cleanly with { video: true } and returns real device IDs
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+          if (!isMounted) return;
+
+          if (cameras && cameras.length > 0) {
+            // Pick rear camera on mobile if available, otherwise pick the first camera (e.g. FaceTime HD Camera on Mac)
+            const rearCamera = cameras.find((c) =>
+              /back|rear|environment|หลัง/i.test(c.label)
+            );
+            const cameraId = rearCamera ? rearCamera.id : cameras[0].id;
+
+            await scanner.start(
+              cameraId,
+              qrConfig,
+              handleScanSuccess,
+              () => {}
+            );
+            if (isMounted) setIsStarting(false);
+            return;
+          }
+        } catch (camErr) {
+          console.warn('getCameras failed, falling back to facingMode constraints...', camErr);
+        }
+
+        if (!isMounted) return;
+
+        // Step 2: Fallback to facingMode if getCameras had no devices
         try {
           await scanner.start(
             { facingMode: 'environment' },
@@ -96,10 +124,7 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
             () => {}
           );
         } catch (envErr) {
-          console.warn('FacingMode environment failed, trying user camera fallback...', envErr);
           if (!isMounted) return;
-
-          // Attempt 2: User camera
           try {
             await scanner.start(
               { facingMode: 'user' },
@@ -107,57 +132,17 @@ export function QrScannerModal({ isOpen, onClose, onScan }: QrScannerModalProps)
               handleScanSuccess,
               () => {}
             );
-          } catch (userErr) {
-            console.warn('FacingMode user failed, trying available cameras list...', userErr);
-            if (!isMounted) return;
-
-            // Attempt 3: Any available video device
-            try {
-              const cameras = await Html5Qrcode.getCameras();
-              if (cameras && cameras.length > 0) {
-                await scanner.start(
-                  cameras[0].id,
-                  qrConfig,
-                  handleScanSuccess,
-                  () => {}
-                );
-              } else {
-                throw new Error('No cameras found');
-              }
-            } catch (finalErr) {
-              console.error('All camera attempts failed:', finalErr);
-              if (isMounted) {
-                setErrorMessage(CAMERA_ERROR_MESSAGE);
-                setIsStarting(false);
-              }
-              return;
+          } catch (finalErr) {
+            console.error('All camera start attempts failed:', finalErr);
+            if (isMounted) {
+              setErrorMessage(CAMERA_ERROR_MESSAGE);
+              setIsStarting(false);
             }
+            return;
           }
         }
 
-        if (!isMounted) {
-          try {
-            if (
-              typeof scanner.getState === 'function' &&
-              scanner.getState() === Html5QrcodeScannerState.SCANNING
-            ) {
-              await scanner.stop();
-            } else if (typeof scanner.stop === 'function') {
-              await scanner.stop();
-            }
-          } catch (stopErr) {
-            console.warn('Error stopping scanner after unmounted start:', stopErr);
-          } finally {
-            try {
-              scanner.clear();
-            } catch {
-              // Ignore clear error on unmounted DOM
-            }
-          }
-          return;
-        }
-
-        setIsStarting(false);
+        if (isMounted) setIsStarting(false);
       } catch (err) {
         console.error('QR scanner start error:', err);
         if (isMounted) {
