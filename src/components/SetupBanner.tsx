@@ -82,15 +82,15 @@ export function SetupBanner({
             <p className="text-xs md:text-sm text-slate-500 mt-0.5">
               {isConfigured ? (
                 <span>
-                  ข้อมูลครุภัณฑ์ทั้งหมดจะถูกบันทึกและซิงค์แบบเรียลไทม์กับ Google Spreadsheet
+                  บันทึกข้อมูลและซิงค์กับ Google Spreadsheet
                   {sheetId && (
-                    <span className="ml-1 text-slate-600">
-                      (ID: <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-xs">{sheetId.slice(0, 12)}...</code>)
+                    <span className="ml-1 text-slate-600 font-mono text-xs">
+                      ({sheetId.slice(0, 10)}...)
                     </span>
                   )}
                 </span>
               ) : (
-                'ระบบกำลังทำงานในโหมดทดลองด้วยข้อมูลตัวอย่าง ข้อมูลที่บันทึกจะจัดเก็บในหน่วยความจำและรีเซ็ตเมื่อรีสตาร์ท'
+                'โหมดทดลองใช้งาน ข้อมูลจะรีเซ็ตเมื่อรีสตาร์ท'
               )}
             </p>
           </div>

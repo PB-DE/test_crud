@@ -397,13 +397,13 @@ export function CameraCaptureModal({
                 <div className="absolute inset-0 pointer-events-none flex items-center justify-center p-6 sm:p-10">
                   <div className="relative w-full h-full border-2 border-white/25 rounded-2xl">
                     {/* Top-Left Corner */}
-                    <div className="absolute -top-0.5 -left-0.5 w-7 h-7 border-t-3 border-l-3 border-blue-400 rounded-tl-xl" />
+                    <div className="absolute -top-0.5 -left-0.5 w-6 h-6 border-t-2 border-l-2 border-blue-400" />
                     {/* Top-Right Corner */}
-                    <div className="absolute -top-0.5 -right-0.5 w-7 h-7 border-t-3 border-r-3 border-blue-400 rounded-tr-xl" />
+                    <div className="absolute -top-0.5 -right-0.5 w-6 h-6 border-t-2 border-r-2 border-blue-400" />
                     {/* Bottom-Left Corner */}
-                    <div className="absolute -bottom-0.5 -left-0.5 w-7 h-7 border-b-3 border-l-3 border-blue-400 rounded-bl-xl" />
+                    <div className="absolute -bottom-0.5 -left-0.5 w-6 h-6 border-b-2 border-l-2 border-blue-400" />
                     {/* Bottom-Right Corner */}
-                    <div className="absolute -bottom-0.5 -right-0.5 w-7 h-7 border-b-3 border-r-3 border-blue-400 rounded-br-xl" />
+                    <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 border-b-2 border-r-2 border-blue-400" />
                   </div>
                 </div>
               )}

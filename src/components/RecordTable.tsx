@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Search,
   X,
@@ -14,6 +14,8 @@ import {
   MapPin,
   User,
   History,
+  Camera,
+  ZoomIn,
 } from 'lucide-react';
 import { AssetRecord, AssetStatus, ASSET_STATUSES } from '@/lib/types';
 import { SortField, SortDirection } from '@/lib/filter-utils';
@@ -51,6 +53,16 @@ export function RecordTable({
   onAddNew,
   onViewHistory,
 }: RecordTableProps) {
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
+
+  // Keyboard accessibility helper for sorting
+  const handleHeaderKeyDown = (e: React.KeyboardEvent, field: SortField) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onSortChange(field);
+    }
+  };
+
   // Format date helper with Thai localization fallback
   const formatDate = (dateString?: string) => {
     if (!dateString) return '—';
@@ -186,8 +198,11 @@ export function RecordTable({
               {/* รหัสครุภัณฑ์ */}
               <th
                 scope="col"
+                tabIndex={0}
+                role="button"
                 onClick={() => onSortChange('assetCode')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group"
+                onKeyDown={(e) => handleHeaderKeyDown(e, 'assetCode')}
+                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
               >
                 <div className="flex items-center gap-1.5">
                   <span>รหัสครุภัณฑ์</span>
@@ -198,8 +213,11 @@ export function RecordTable({
               {/* ชื่อรายการครุภัณฑ์ */}
               <th
                 scope="col"
+                tabIndex={0}
+                role="button"
                 onClick={() => onSortChange('name')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group"
+                onKeyDown={(e) => handleHeaderKeyDown(e, 'name')}
+                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
               >
                 <div className="flex items-center gap-1.5">
                   <span>ชื่อรายการครุภัณฑ์</span>
@@ -210,8 +228,11 @@ export function RecordTable({
               {/* ตำแหน่งที่ตั้ง */}
               <th
                 scope="col"
+                tabIndex={0}
+                role="button"
                 onClick={() => onSortChange('location')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group"
+                onKeyDown={(e) => handleHeaderKeyDown(e, 'location')}
+                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
               >
                 <div className="flex items-center gap-1.5">
                   <span>ตำแหน่งที่ตั้ง</span>
@@ -222,8 +243,11 @@ export function RecordTable({
               {/* สถานะ */}
               <th
                 scope="col"
+                tabIndex={0}
+                role="button"
                 onClick={() => onSortChange('status')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group"
+                onKeyDown={(e) => handleHeaderKeyDown(e, 'status')}
+                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
               >
                 <div className="flex items-center gap-1.5">
                   <span>สถานะ</span>
@@ -234,8 +258,11 @@ export function RecordTable({
               {/* ผู้รับผิดชอบ */}
               <th
                 scope="col"
+                tabIndex={0}
+                role="button"
                 onClick={() => onSortChange('responsiblePerson')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group"
+                onKeyDown={(e) => handleHeaderKeyDown(e, 'responsiblePerson')}
+                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
               >
                 <div className="flex items-center gap-1.5">
                   <span>ผู้รับผิดชอบ</span>
@@ -246,8 +273,11 @@ export function RecordTable({
               {/* ผู้บันทึก */}
               <th
                 scope="col"
+                tabIndex={0}
+                role="button"
                 onClick={() => onSortChange('recordedBy')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group"
+                onKeyDown={(e) => handleHeaderKeyDown(e, 'recordedBy')}
+                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
               >
                 <div className="flex items-center gap-1.5">
                   <span>ผู้บันทึก</span>
@@ -266,8 +296,11 @@ export function RecordTable({
               {/* อัปเดตล่าสุด */}
               <th
                 scope="col"
+                tabIndex={0}
+                role="button"
                 onClick={() => onSortChange('updatedAt')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group"
+                onKeyDown={(e) => handleHeaderKeyDown(e, 'updatedAt')}
+                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
               >
                 <div className="flex items-center gap-1.5">
                   <span>อัปเดตล่าสุด</span>
@@ -367,27 +400,64 @@ export function RecordTable({
                   key={record.id}
                   className="hover:bg-slate-50/80 transition-colors group"
                 >
-                  {/* รหัสครุภัณฑ์ */}
+                  {/* รหัสและรูปภาพครุภัณฑ์ */}
                   <td className="py-3.5 px-4 sm:px-5 font-mono text-xs sm:text-sm font-semibold text-blue-700 whitespace-nowrap">
-                    {onViewHistory ? (
-                      <button
-                        type="button"
-                        onClick={() => onViewHistory(record)}
-                        title={`คลิกเพื่อดูประวัติและ Transaction Log ของ ${record.assetCode}`}
-                        aria-label={`ดูประวัติและ Log ของ ${record.assetCode}`}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50/80 border border-blue-200/80 text-blue-700 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-900 transition-all cursor-pointer group/code focus:outline-hidden focus:ring-2 focus:ring-blue-500/30 text-left"
-                      >
-                        <Tag className="w-3.5 h-3.5 text-blue-500 group-hover/code:text-blue-700 transition-colors shrink-0" />
-                        <span className="underline decoration-blue-300/80 underline-offset-2 group-hover/code:decoration-blue-600 font-medium">
-                          {record.assetCode}
-                        </span>
-                      </button>
-                    ) : (
-                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50/60 border border-blue-100">
-                        <Tag className="w-3 h-3 text-blue-500 shrink-0" />
-                        <span>{record.assetCode}</span>
+                    <div className="flex items-center gap-2.5">
+                      {record.imageUrl ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPreviewImage({
+                              url: record.imageUrl!,
+                              title: `${record.assetCode} - ${record.name}`,
+                            })
+                          }
+                          className="w-9 h-9 rounded-lg overflow-hidden border border-slate-200 shadow-2xs shrink-0 cursor-pointer hover:border-blue-400 hover:ring-2 hover:ring-blue-500/20 transition-all relative group bg-slate-50"
+                          title="คลิกเพื่อดูรูปภาพขนาดเต็ม"
+                          aria-label={`ดูรูปภาพ ${record.name}`}
+                        >
+                          <img
+                            src={record.imageUrl}
+                            alt={record.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                            <ZoomIn className="w-3.5 h-3.5 drop-shadow-xs" />
+                          </div>
+                        </button>
+                      ) : (
+                        <div
+                          className="w-9 h-9 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 flex items-center justify-center text-slate-300 shrink-0"
+                          title="ไม่มีรูปภาพ"
+                        >
+                          <Camera className="w-4 h-4 text-slate-300" />
+                        </div>
+                      )}
+                      <div>
+                        {onViewHistory ? (
+                          <button
+                            type="button"
+                            onClick={() => onViewHistory(record)}
+                            title={`คลิกเพื่อดูประวัติและ Transaction Log ของ ${record.assetCode}`}
+                            aria-label={`ดูประวัติและ Log ของ ${record.assetCode}`}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50/80 border border-blue-200/80 text-blue-700 hover:bg-blue-100 hover:border-blue-300 hover:text-blue-900 transition-all cursor-pointer group/code focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-left"
+                          >
+                            <Tag className="w-3.5 h-3.5 text-blue-500 group-hover/code:text-blue-700 transition-colors shrink-0" />
+                            <span className="underline decoration-blue-300/80 underline-offset-2 group-hover/code:decoration-blue-600 font-medium">
+                              {record.assetCode}
+                            </span>
+                          </button>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-50/60 border border-blue-100">
+                            <Tag className="w-3 h-3 text-blue-500 shrink-0" />
+                            <span>{record.assetCode}</span>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </td>
 
                   {/* ชื่อรายการครุภัณฑ์ */}
@@ -428,7 +498,7 @@ export function RecordTable({
                     {record.notes ? (
                       <span title={record.notes}>{record.notes}</span>
                     ) : (
-                      <span className="text-slate-300 italic">—</span>
+                      <span className="text-slate-400 font-normal">—</span>
                     )}
                   </td>
 
@@ -439,14 +509,14 @@ export function RecordTable({
 
                   {/* จัดการ */}
                   <td className="py-3.5 px-4 sm:px-5 text-right whitespace-nowrap">
-                    <div className="inline-flex items-center gap-1">
+                    <div className="inline-flex items-center gap-1.5">
                       {onViewHistory && (
                         <button
                           type="button"
                           onClick={() => onViewHistory(record)}
                           aria-label={`ดูประวัติ ${record.name} (${record.assetCode})`}
                           title="ดูประวัติการเปลี่ยนแปลง"
-                          className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                         >
                           <History className="w-4 h-4" />
                         </button>
@@ -456,7 +526,7 @@ export function RecordTable({
                         onClick={() => onEdit(record)}
                         aria-label={`แก้ไข ${record.name} (${record.assetCode})`}
                         title="แก้ไขข้อมูลครุภัณฑ์"
-                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                       >
                         <Pencil className="w-4 h-4" />
                       </button>
@@ -466,7 +536,7 @@ export function RecordTable({
                         disabled={record.status === 'จำหน่าย/ตัดบัญชี'}
                         aria-label={`จำหน่าย/ตัดบัญชี ${record.name} (${record.assetCode})`}
                         title={record.status === 'จำหน่าย/ตัดบัญชี' ? 'ครุภัณฑ์นี้จำหน่าย/ตัดบัญชีแล้ว' : 'จำหน่าย/ตัดบัญชีครุภัณฑ์'}
-                        className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed"
+                        className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-rose-500/20"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -494,6 +564,42 @@ export function RecordTable({
           คลิกที่หัวตารางเพื่อจัดเรียงข้อมูล น้อยไปมาก / มากไปน้อย
         </div>
       </div>
+
+      {/* Lightbox Photo Preview */}
+      {previewImage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div
+            className="relative max-w-2xl max-h-[85vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between text-white">
+              <span className="text-xs sm:text-sm font-medium truncate pr-4">
+                {previewImage.title}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                aria-label="ปิดการแสดงรูปภาพ"
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-2 flex items-center justify-center overflow-auto max-h-[calc(85vh-60px)]">
+              <img
+                src={previewImage.url}
+                alt={previewImage.title}
+                className="max-w-full max-h-[75vh] object-contain rounded-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

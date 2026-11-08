@@ -78,6 +78,7 @@ export function RecordModal({
   const [isResponsibleModified, setIsResponsibleModified] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
 
   // Unique options for datalist memoized to avoid recomputing on every render (must be before early return)
@@ -283,15 +284,16 @@ export function RecordModal({
         const uploadJson = await uploadRes.json();
         if (uploadRes.ok && uploadJson.success && uploadJson.url) {
           finalImageUrl = uploadJson.url;
+          setUploadError(null);
         } else {
           const errMsg = uploadJson.details || uploadJson.error || 'ไม่สามารถอัปโหลดรูปภาพขึ้น Google Drive ได้';
-          alert(`อัปโหลดรูปภาพไม่สำเร็จ: ${errMsg}`);
+          setUploadError(`อัปโหลดรูปภาพไม่สำเร็จ: ${errMsg}`);
           setIsUploading(false);
           return;
         }
       } catch (uploadErr: any) {
         console.error('Failed to upload image before saving:', uploadErr);
-        alert(`เกิดข้อผิดพลาดในการเชื่อมต่ออัปโหลดรูปภาพ: ${uploadErr?.message || uploadErr}`);
+        setUploadError(`เกิดข้อผิดพลาดในการเชื่อมต่ออัปโหลดรูปภาพ: ${uploadErr?.message || uploadErr}`);
         setIsUploading(false);
         return;
       } finally {
@@ -324,10 +326,26 @@ export function RecordModal({
       aria-labelledby="modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
     >
-      {/* Backdrop */}
+      {/* Backdrop with dirty protection to prevent accidental data loss */}
       <div
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
-        onClick={() => !isSubmitting && onClose()}
+        onClick={() => {
+          if (isSubmitting) return;
+          const isDirty = Boolean(
+            formData.assetCode.trim() ||
+            formData.name.trim() ||
+            formData.location.trim() ||
+            formData.notes?.trim() ||
+            selectedFile
+          );
+          if (isDirty) {
+            if (window.confirm('คุณต้องการยกเลิกและปิดหน้าต่างโดยไม่บันทึกข้อมูลใช่หรือไม่?')) {
+              onClose();
+            }
+          } else {
+            onClose();
+          }
+        }}
       />
 
       {/* Modal Dialog Card */}
@@ -373,6 +391,19 @@ export function RecordModal({
 
         {/* Form Body (Scrollable if needed) */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+          {uploadError && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start justify-between gap-2 animate-in fade-in">
+              <span>{uploadError}</span>
+              <button
+                type="button"
+                onClick={() => setUploadError(null)}
+                aria-label="ปิดการแจ้งเตือน"
+                className="text-rose-400 hover:text-rose-600 font-bold p-1 cursor-pointer shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           {/* Row 1: Asset Code & Status */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Asset Code */}

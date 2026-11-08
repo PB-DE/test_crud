@@ -329,7 +329,7 @@ export default function DashboardView() {
                 </span>
               </div>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                Asset Tracking System — บันทึก ติดตาม และจัดการสถานะครุภัณฑ์ เชื่อมต่อกับ Google Sheets แบบเรียลไทม์
+                Asset Tracking System — บันทึก ติดตาม และจัดการสถานะครุภัณฑ์
               </p>
             </div>
           </div>
