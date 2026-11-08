@@ -30,3 +30,6 @@ next-env.d.ts
 
 # Tooling and agent artifacts
 .superpowers/
+
+#costume folder
+docs/
