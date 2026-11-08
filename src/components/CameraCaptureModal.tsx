@@ -10,6 +10,9 @@ import {
   AlertCircle,
   Loader2,
   Image as ImageIcon,
+  Lock,
+  Settings,
+  Smartphone,
 } from 'lucide-react';
 
 export const CAMERA_PERMISSION_ERROR =
@@ -28,7 +31,10 @@ export function dataUrlToFile(dataUrl: string, filename: string): File {
   const parts = dataUrl.split(',');
   const mimeMatch = parts[0]?.match(/:(.*?);/);
   const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-  const binaryString = typeof atob === 'function' ? atob(parts[1]) : Buffer.from(parts[1], 'base64').toString('binary');
+  const binaryString =
+    typeof atob === 'function'
+      ? atob(parts[1])
+      : Buffer.from(parts[1], 'base64').toString('binary');
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
@@ -49,14 +55,16 @@ export function CameraCaptureModal({
   onCapture,
 }: CameraCaptureModalProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorType, setErrorType] = useState<'permission' | 'notFound' | 'general' | null>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [capturedDataUrl, setCapturedDataUrl] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
-  const [hasMultipleCameras, setHasMultipleCameras] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const nativeCameraInputRef = useRef<HTMLInputElement>(null);
 
   // Stop media tracks helper
   const stopStream = useCallback(() => {
@@ -75,35 +83,19 @@ export function CameraCaptureModal({
     }
   }, []);
 
-  // Check if multiple camera devices exist
-  useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.enumerateDevices) {
-      navigator.mediaDevices
-        .enumerateDevices()
-        .then((devices) => {
-          const videoInputs = devices.filter((d) => d.kind === 'videoinput');
-          if (videoInputs.length > 1) {
-            setHasMultipleCameras(true);
-          }
-        })
-        .catch(() => {
-          // Ignore enumeration errors
-        });
-    }
-  }, [isOpen]);
-
-  // Start video stream when modal is open and in capture mode
+  // Progressive camera initialization with 3 fallback levels
   useEffect(() => {
     if (!isOpen) {
       stopStream();
       setCapturedDataUrl(null);
       setErrorMessage(null);
+      setErrorType(null);
       setIsInitializing(true);
       return;
     }
 
     if (capturedDataUrl) {
-      // If user is currently reviewing captured snapshot, stop camera stream to save battery
+      // Free camera hardware when reviewing snapshot
       stopStream();
       return;
     }
@@ -111,73 +103,88 @@ export function CameraCaptureModal({
     let isCancelled = false;
     setIsInitializing(true);
     setErrorMessage(null);
+    setErrorType(null);
 
     const startCamera = async () => {
       if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
         if (!isCancelled) {
           setIsInitializing(false);
+          setErrorType('general');
           setErrorMessage(CAMERA_UNSUPPORTED_ERROR);
         }
         return;
       }
 
-      // Stop previous stream if any
+      // Stop any existing stream
       stopStream();
 
+      let stream: MediaStream | null = null;
+
+      // Attempt 1: Target facing mode with high resolution
       try {
-        const constraints: MediaStreamConstraints = {
+        stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: facingMode },
             width: { ideal: 1920 },
             height: { ideal: 1080 },
           },
           audio: false,
-        };
+        });
+      } catch (firstErr: any) {
+        console.warn('Attempt 1 failed, trying alternative camera...', firstErr);
 
-        let stream: MediaStream;
+        // Attempt 2: Alternative facing mode with standard constraints
         try {
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (firstErr: any) {
-          // If environment failed, try without facingMode constraints
-          if (facingMode === 'environment') {
+          const altFacing = facingMode === 'environment' ? 'user' : 'environment';
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: altFacing },
+            audio: false,
+          });
+        } catch (secondErr: any) {
+          console.warn('Attempt 2 failed, trying bare video constraints...', secondErr);
+
+          // Attempt 3: Bare video constraint (accepts any webcam or camera)
+          try {
             stream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: 'user' },
+              video: true,
               audio: false,
             });
-          } else {
-            throw firstErr;
+          } catch (thirdErr: any) {
+            if (isCancelled) return;
+            setIsInitializing(false);
+            console.error('All camera attempts failed:', thirdErr);
+
+            const errName = thirdErr?.name || firstErr?.name || '';
+            if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+              setErrorType('permission');
+              setErrorMessage(CAMERA_PERMISSION_ERROR);
+            } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+              setErrorType('notFound');
+              setErrorMessage(CAMERA_NOT_FOUND_ERROR);
+            } else {
+              setErrorType('general');
+              setErrorMessage(CAMERA_GENERAL_ERROR);
+            }
+            return;
           }
-        }
-
-        if (isCancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          try {
-            await videoRef.current.play();
-          } catch {
-            // Handled if play was interrupted
-          }
-        }
-        setIsInitializing(false);
-      } catch (err: any) {
-        if (isCancelled) return;
-        setIsInitializing(false);
-        console.error('Camera access error:', err);
-
-        const errorName = err?.name || '';
-        if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError') {
-          setErrorMessage(CAMERA_PERMISSION_ERROR);
-        } else if (errorName === 'NotFoundError' || errorName === 'DevicesNotFoundError') {
-          setErrorMessage(CAMERA_NOT_FOUND_ERROR);
-        } else {
-          setErrorMessage(CAMERA_GENERAL_ERROR);
         }
       }
+
+      if (isCancelled) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        try {
+          await videoRef.current.play();
+        } catch {
+          // Playback might be queued
+        }
+      }
+      setIsInitializing(false);
     };
 
     startCamera();
@@ -186,7 +193,7 @@ export function CameraCaptureModal({
       isCancelled = true;
       stopStream();
     };
-  }, [isOpen, facingMode, capturedDataUrl, stopStream]);
+  }, [isOpen, facingMode, capturedDataUrl, retryCount, stopStream]);
 
   // Handle escape key
   useEffect(() => {
@@ -244,6 +251,15 @@ export function CameraCaptureModal({
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
   };
 
+  // Native camera fallback (device camera / file input)
+  const handleNativeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    stopStream();
+    onCapture(file);
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -253,6 +269,16 @@ export function CameraCaptureModal({
       aria-labelledby="camera-modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6"
     >
+      {/* Hidden Native Camera Fallback Input */}
+      <input
+        ref={nativeCameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleNativeFileChange}
+      />
+
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
@@ -310,6 +336,7 @@ export function CameraCaptureModal({
                 playsInline
                 autoPlay
                 muted
+                onLoadedMetadata={() => videoRef.current?.play()}
                 className={`w-full h-full object-cover ${
                   facingMode === 'user' ? 'scale-x-[-1]' : ''
                 }`}
@@ -341,41 +368,71 @@ export function CameraCaptureModal({
                 กำลังเปิดกล้องและขอสิทธิ์การเข้าถึง...
               </p>
               <p className="text-[11px] text-slate-500 max-w-xs">
-                หากเบราว์เซอร์แจ้งเตือน กรุณากด &quot;อนุญาต&quot; (Allow) เพื่อใช้งานกล้อง
+                หากเบราว์เซอร์แจ้งเตือน กรุณากด &quot;อนุญาต&quot; (Allow) เพื่อเปิดใช้งานกล้อง
               </p>
             </div>
           )}
 
-          {/* Error Message Box */}
+          {/* Detailed Error & Troubleshooting View */}
           {errorMessage && !capturedDataUrl && (
-            <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center gap-3 p-6 text-center z-20">
-              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center">
-                <AlertCircle className="w-6 h-6" />
+            <div className="absolute inset-0 bg-slate-900/95 flex flex-col items-center justify-center p-5 text-center z-20 overflow-y-auto">
+              <div className="w-11 h-11 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center mb-2 shrink-0">
+                <AlertCircle className="w-5 h-5" />
               </div>
-              <h3 className="text-sm font-semibold text-white">ไม่สามารถเปิดกล้องได้</h3>
-              <p className="text-xs text-slate-300 max-w-sm leading-relaxed">
+              <h3 className="text-sm font-semibold text-white mb-1">
+                {errorType === 'permission'
+                  ? 'เบราว์เซอร์ยังไม่ได้รับอนุญาตให้ใช้กล้อง'
+                  : 'ไม่สามารถเปิดกล้องได้'}
+              </h3>
+              <p className="text-xs text-slate-300 max-w-xs mb-3 leading-relaxed">
                 {errorMessage}
               </p>
-              <div className="flex items-center gap-2.5 mt-2">
+
+              {/* Troubleshooting Instructions for Permission */}
+              {errorType === 'permission' && (
+                <div className="bg-slate-800/90 border border-slate-700/80 rounded-xl p-3 text-left text-[11px] text-slate-300 w-full max-w-sm mb-3 space-y-1.5">
+                  <div className="font-semibold text-amber-300 flex items-center gap-1.5 mb-1">
+                    <Lock className="w-3.5 h-3.5" />
+                    วิธีเปิดอนุญาตสิทธิ์กล้องในเบราว์เซอร์:
+                  </div>
+                  <div className="flex items-start gap-1.5 text-slate-300">
+                    <span className="text-blue-400 font-bold shrink-0">1.</span>
+                    <span>คลิกไอคอน <strong>🔒 กุญแจ</strong> หรือ <strong>📷 กล้อง</strong> ที่แถบ URL ด้านบนซ้าย</span>
+                  </div>
+                  <div className="flex items-start gap-1.5 text-slate-300">
+                    <span className="text-blue-400 font-bold shrink-0">2.</span>
+                    <span>เปลี่ยนหัวข้อ <strong>กล้อง (Camera)</strong> เป็น <strong>&quot;อนุญาต&quot; (Allow)</strong></span>
+                  </div>
+                  <div className="flex items-start gap-1.5 text-slate-300">
+                    <span className="text-blue-400 font-bold shrink-0">3.</span>
+                    <span>บน Mac: ตรวจสอบที่ <em>System Settings &gt; Privacy &gt; Camera</em> ว่าเปิดให้เบราว์เซอร์แล้ว</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full max-w-sm">
                 <button
                   type="button"
                   onClick={() => {
                     setErrorMessage(null);
+                    setErrorType(null);
                     setIsInitializing(true);
-                    setFacingMode((prev) => prev);
+                    setRetryCount((prev) => prev + 1);
                   }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-xl bg-slate-800 hover:bg-slate-700 text-white transition-colors cursor-pointer"
+                  className="w-full sm:w-auto flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-slate-800 hover:bg-slate-700 text-white transition-colors cursor-pointer border border-slate-700"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   ลองใหม่อีกครั้ง
                 </button>
+
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors cursor-pointer"
+                  onClick={() => nativeCameraInputRef.current?.click()}
+                  className="w-full sm:w-auto flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors cursor-pointer shadow-md shadow-blue-600/30"
                 >
-                  <ImageIcon className="w-3.5 h-3.5" />
-                  เลือกจากคลังภาพแทน
+                  <Smartphone className="w-3.5 h-3.5" />
+                  ถ่ายผ่านกล้องมือถือ/เลือกไฟล์
                 </button>
               </div>
             </div>
@@ -434,14 +491,16 @@ export function CameraCaptureModal({
                 </button>
               </div>
 
-              {/* Right: Cancel button */}
+              {/* Right: Quick Native Camera / File fallback */}
               <div className="flex justify-end">
                 <button
                   type="button"
-                  onClick={onClose}
-                  className="px-3.5 py-2 text-xs font-medium text-slate-400 hover:text-white transition-colors cursor-pointer"
+                  onClick={() => nativeCameraInputRef.current?.click()}
+                  className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+                  title="เปิดกล้องอุปกรณ์หรือเลือกรูปจากเครื่องโดยตรง"
                 >
-                  ยกเลิก
+                  <Smartphone className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="hidden sm:inline">กล้องมือถือ/ไฟล์</span>
                 </button>
               </div>
             </div>
@@ -451,4 +510,3 @@ export function CameraCaptureModal({
     </div>
   );
 }
-
