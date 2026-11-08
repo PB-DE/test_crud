@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { assetCode, name, location, status, responsiblePerson, recordedBy, notes } =
+  const { assetCode, name, location, status, responsiblePerson, recordedBy, notes, imageUrl } =
     body || {};
 
   if (!assetCode || typeof assetCode !== 'string' || assetCode.trim().length === 0) {
@@ -96,6 +96,7 @@ export async function POST(request: Request) {
       responsiblePerson: responsiblePerson.trim(),
       recordedBy: recordedBy.trim(),
       notes: typeof notes === 'string' ? notes.trim() : '',
+      imageUrl: typeof imageUrl === 'string' && imageUrl.trim().length > 0 ? imageUrl.trim() : undefined,
     });
 
     return NextResponse.json(

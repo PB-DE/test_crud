@@ -67,6 +67,7 @@ export async function PUT(
     responsiblePerson,
     recordedBy,
     notes,
+    imageUrl,
   } = body || {};
   const updateData: UpdateAssetInput = {};
 
@@ -139,6 +140,10 @@ export async function PUT(
 
   if (notes !== undefined) {
     updateData.notes = typeof notes === 'string' ? notes.trim() : '';
+  }
+
+  if (imageUrl !== undefined) {
+    updateData.imageUrl = typeof imageUrl === 'string' ? imageUrl.trim() : undefined;
   }
 
   try {

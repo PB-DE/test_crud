@@ -7,6 +7,7 @@ import {
 } from '../src/app/api/records/[id]/route';
 import { GET as getLogs } from '../src/app/api/logs/route';
 import { GET as getStatus } from '../src/app/api/status/route';
+import { POST as postUpload } from '../src/app/api/upload/route';
 import { sheetsService } from '../src/lib/sheets';
 import * as envModule from '../src/lib/env';
 
@@ -877,6 +878,58 @@ describe('API Route Handlers', () => {
       const json = await res.json();
       expect(json.configured).toBe(true);
       expect(json.sheetId).toBe('sheet-xyz-123');
+    });
+  });
+
+  describe('POST /api/upload', () => {
+    it('returns 400 when no file is uploaded', async () => {
+      const formData = new FormData();
+      const req = new Request('http://localhost:3000/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const res = await postUpload(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toMatch(/no image file/i);
+    });
+
+    it('returns 400 when uploaded file is not an allowed image format', async () => {
+      const formData = new FormData();
+      const fakePdf = new File(['%PDF-1.4...'], 'document.pdf', { type: 'application/pdf' });
+      formData.append('file', fakePdf);
+
+      const req = new Request('http://localhost:3000/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const res = await postUpload(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.success).toBe(false);
+      expect(json.error).toMatch(/invalid file type/i);
+    });
+
+    it('uploads valid image and returns 200 with url and fileId', async () => {
+      const formData = new FormData();
+      const fakeImage = new File(['fake-image-bytes'], 'asset-photo.jpg', { type: 'image/jpeg' });
+      formData.append('file', fakeImage);
+      formData.append('assetCode', 'EQ-2026-TEST');
+
+      const req = new Request('http://localhost:3000/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const res = await postUpload(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.url).toBeDefined();
+      expect(json.fileId).toBeDefined();
     });
   });
 });
