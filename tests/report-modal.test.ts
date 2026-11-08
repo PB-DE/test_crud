@@ -25,3 +25,4 @@ describe('ReportModal Component Contract & SSR Safety', () => {
     expect(mod.REPORT_PRINT_CONTAINER_ID).toBeDefined();
   });
 });
+

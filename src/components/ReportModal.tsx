@@ -429,3 +429,4 @@ export function ReportModal({ isOpen, onClose, records }: ReportModalProps) {
     </div>
   );
 }
+
