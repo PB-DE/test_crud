@@ -13,6 +13,10 @@
 
 ## จุดเด่นและคุณสมบัติหลัก (Highlights & Features)
 
+- **ถ่ายภาพสดจากกล้องและเลือกจากคลังภาพ (Camera & Gallery Photo Upload):** ถ่ายภาพครุภัณฑ์ได้ทันทีผ่านกล้องมือถือ/แท็บเล็ต/เว็บแคม หรือเลือกภาพที่มีอยู่ในเครื่อง พร้อมแสดงตัวอย่างรูปภาพแบบเรียลไทม์
+- **จัดเก็บรูปภาพบน Google Drive (Google Drive Cloud Storage):** อัปโหลดไฟล์รูปภาพไปยังโฟลเดอร์ Google Drive ขององค์กรผ่าน Google Service Account อัตโนมัติ โดยระบุ `GOOGLE_DRIVE_FOLDER_ID`
+- **พรีวิวภาพถ่ายในหน้าต่างประวัติ (History Photo Viewer & Lightbox):** ในหน้าต่างดูประวัติย้อนหลัง (`LogHistoryModal`) สามารถดูรูปถ่ายที่แนบมากับรายการทำรายการในแต่ละช่วงเวลา และคลิกเพื่อขยายดูรูปขนาดเต็มได้
+- **แดชบอร์ดสะอาดตาไร้ความรก (Uncluttered Dashboard):** หน้าตารางแดชบอร์ดหลักถูกออกแบบให้กระชับ โหลดเร็ว และไม่แสดง thumbnail รูปภาพมารบกวนการทำงาน
 - **ระบบโมดอลรวมศูนย์ (+ บันทึกหรือเปลี่ยนแปลงครุภัณฑ์):** ผสานการลงทะเบียนครุภัณฑ์ใหม่และการอัปเดตตำแหน่ง/สถานะครุภัณฑ์เดิมเข้าไว้ในหน้าต่างเดียว ใช้งานง่ายทั้งจากเดสก์ท็อปและสมาร์ตโฟน
 - **สแกน QR Code ด้วยกล้องอุปกรณ์ (Mobile QR Scanner):** ปุ่มสแกนข้างช่องรหัสครุภัณฑ์ รองรับกล้องหลัง (Rear/Environment Camera) บนมือถือและแท็บเล็ต พร้อมระบบสลับกล้องสำรองอัตโนมัติด้วยเทคโนโลยี `html5-qrcode`
 - **ระบบค้นหารหัสครุภัณฑ์แบบเรียลไทม์ (Reactive Asset Lookup & Auto-Fill):**
@@ -46,7 +50,7 @@
 
 ระบบเปลี่ยนผ่านสู่สถาปัตยกรรม **Append-Only Transaction Log Architecture** 100% โดย Google Sheet จะทำหน้าที่เป็นสมุดบัญชีรายการทำรายการ (Transaction Ledger) ที่บันทึกประวัติแบบไม่ลบหรือเขียนทับข้อมูลเดิม:
 
-### 1. โครงสร้างคอลัมน์มาตรฐาน 10 คอลัมน์ (`A:J`)
+### 1. โครงสร้างคอลัมน์มาตรฐาน 11 คอลัมน์ (`A:K`)
 
 ทุกการกระทำ (ลงทะเบียนครุภัณฑ์ใหม่, ย้ายสถานที่, เปลี่ยนผู้ดูแล, เปลี่ยนสถานะ หรือจำหน่าย/ตัดบัญชี) จะเขียนต่อท้ายแถวใหม่ (Append Row) ในรูปแบบเดียวกันเสมอ:
 
@@ -62,6 +66,7 @@
 | **H** | `ผู้รับผิดชอบ` | `responsiblePerson` | String | ชื่อเจ้าหน้าที่หรือแผนกผู้ถือครอง/ดูแลครุภัณฑ์ |
 | **I** | `ผู้บันทึก` | `recordedBy` | String | ชื่อเจ้าหน้าที่ผู้ลงข้อมูลหรือตรวจนับ |
 | **J** | `หมายเหตุ` | `notes` | String | ข้อมูลเพิ่มเติม รายละเอียดอาการ หรือสเปก |
+| **K** | `รูปภาพ` | `imageUrl` | String (URL) | ลิงก์รูปภาพครุภัณฑ์บน Google Drive |
 
 ---
 
@@ -269,6 +274,7 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvg...=\n-----END PRIVATE KE
 | `GOOGLE_SHEET_ID` | รหัส Spreadsheet ID ที่ได้จาก URL ของ Google Sheet | Yes | `1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms` |
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | อีเมลของ Service Account จาก Google Cloud Console | Yes | `sheets-worker@app.iam.gserviceaccount.com` |
 | `GOOGLE_PRIVATE_KEY` | Private Key ของ Service Account ในรูปแบบ PEM (รองรับทั้ง `\n` หรือขึ้นบรรทัดจริง) | Yes | `"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"` |
+| `GOOGLE_DRIVE_FOLDER_ID` | รหัส Folder ID หรือ URL โฟลเดอร์บน Google Drive สำหรับเก็บรูปภาพ (ดูคู่มือ [Google Drive Setup](docs/google-drive-setup.md)) | Optional | `1A2b3C4d5E6f7G8h9I0jKlMnOpQrStUvW` |
 
 > [!NOTE]
 > ตัวแปรสภาพแวดล้อมทั้งหมดถูกเรียกใช้ผ่าน Server-Side API Routes เท่านั้น จะไม่ถูกเปิดเผยไปยัง Client Browser อย่างเด็ดขาด
@@ -288,8 +294,10 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvg...=\n-----END PRIVATE KE
 │   │   │   │   ├── route.ts            # GET /api/records, POST /api/records
 │   │   │   │   └── [id]/
 │   │   │   │       └── route.ts        # GET, PUT, DELETE /api/records/[id]
-│   │   │   └── status/
-│   │   │       └── route.ts            # GET /api/status (connection health)
+│   │   │   ├── status/
+│   │   │   │   └── route.ts            # GET /api/status (connection health)
+│   │   │   └── upload/
+│   │   │       └── route.ts            # POST /api/upload (camera & gallery image upload to Google Drive)
 │   │   ├── globals.css                 # Tailwind directives & styles
 │   │   ├── layout.tsx                  # Root layout & HTML shell
 │   │   └── page.tsx                    # Main interactive Asset Tracking dashboard
