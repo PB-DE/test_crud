@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { AssetRecord, AssetStatus, ASSET_STATUSES } from '@/lib/types';
 import { findAssetByCode } from '@/lib/ui-helpers';
+import { compressImage } from '@/lib/image-utils';
 import { QrScannerModal } from './QrScannerModal';
 import { CameraCaptureModal } from './CameraCaptureModal';
 
@@ -275,8 +276,9 @@ export function RecordModal({
     if (selectedFile) {
       setIsUploading(true);
       try {
+        const fileToUpload = await compressImage(selectedFile);
         const uploadData = new FormData();
-        uploadData.append('file', selectedFile);
+        uploadData.append('file', fileToUpload);
         uploadData.append('assetCode', formData.assetCode.trim() || 'asset');
         const uploadRes = await fetch('/api/upload', {
           method: 'POST',

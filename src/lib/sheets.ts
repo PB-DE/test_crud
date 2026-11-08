@@ -320,18 +320,28 @@ export async function uploadImageToDrive(
   const { drive, folderId } = client;
   const stream = Readable.from(buffer);
 
-  const res = await drive.files.create({
-    supportsAllDrives: true,
-    requestBody: {
-      name: fileName,
-      parents: [folderId],
-    },
-    media: {
-      mimeType,
-      body: stream,
-    },
-    fields: 'id, webViewLink, thumbnailLink',
-  });
+  let res;
+  try {
+    res = await drive.files.create({
+      supportsAllDrives: true,
+      requestBody: {
+        name: fileName,
+        parents: [folderId],
+      },
+      media: {
+        mimeType,
+        body: stream,
+      },
+      fields: 'id, webViewLink, thumbnailLink',
+    });
+  } catch (err: any) {
+    if (err?.message?.includes('storage quota') || err?.message?.includes('Service Accounts do not have storage quota')) {
+      throw new Error(
+        'Service Account ไม่มีโควตาพื้นที่บน Google Drive ส่วนตัว (@gmail.com) กรุณาเพิ่มตัวแปร GOOGLE_DRIVE_UPLOAD_URL บน Vercel Environment Variables เพื่ออัปโหลดผ่าน Apps Script Web App'
+      );
+    }
+    throw err;
+  }
 
   const fileId = res.data.id || '';
 
