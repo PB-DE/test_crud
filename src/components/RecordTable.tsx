@@ -19,7 +19,7 @@ import {
   ClipboardCheck,
 } from 'lucide-react';
 import { AssetRecord, AssetStatus, ASSET_STATUSES, UserRole } from '@/lib/types';
-import { SortField, SortDirection, formatDateTime24 } from '@/lib/filter-utils';
+import { SortField, SortDirection, formatThaiDate, formatDateTime24 } from '@/lib/filter-utils';
 
 export interface RecordTableProps {
   records: AssetRecord[];
@@ -63,22 +63,6 @@ export function RecordTable({
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       onSortChange(field);
-    }
-  };
-
-  // Format date helper with Thai localization fallback
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '—';
-    try {
-      const d = new Date(dateString);
-      if (isNaN(d.getTime())) return dateString;
-      return d.toLocaleDateString('th-TH', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      });
-    } catch {
-      return dateString;
     }
   };
 
@@ -422,7 +406,7 @@ export function RecordTable({
                   {/* วันที่ได้มา */}
                   <td className="py-3.5 px-4 sm:px-5 text-slate-600 tabular-nums text-xs sm:text-sm whitespace-nowrap">
                     {record.acquisitionDate ? (
-                      formatDate(record.acquisitionDate)
+                      formatThaiDate(record.acquisitionDate)
                     ) : (
                       <span className="text-slate-400 font-normal">—</span>
                     )}

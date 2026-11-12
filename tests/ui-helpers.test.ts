@@ -5,6 +5,9 @@ import {
   filterLogs,
   formatLogDateTime,
   formatDateTime24,
+  formatThaiDate,
+  parseFlexibleDate,
+  toDateInputValue,
   getActionBadgeStyle,
 } from '../src/lib/filter-utils';
 import { findAssetByCode, reconcileAssetRecords } from '../src/lib/ui-helpers';
@@ -656,6 +659,60 @@ describe('formatDateTime24', () => {
     expect(formatDateTime24(dt)).toBe('12 พ.ย. 2569 00:05');
   });
 });
+
+describe('parseFlexibleDate, formatThaiDate, and toDateInputValue', () => {
+  it('parses DD/MM/YYYY Buddhist Era dates without MM/DD swap or double +543 offset', () => {
+    expect(formatThaiDate('11/03/2569')).toBe('11 มี.ค. 2569');
+    expect(formatThaiDate('04/12/2558')).toBe('4 ธ.ค. 2558');
+    expect(formatThaiDate('21/10/2558')).toBe('21 ต.ค. 2558');
+    expect(formatThaiDate('29/2/2567')).toBe('29 ก.พ. 2567');
+  });
+
+  it('parses DD/MM/YYYY Gregorian AD dates accurately', () => {
+    expect(formatThaiDate('30/05/1961')).toBe('30 พ.ค. 2504');
+  });
+
+  it('parses YYYY-MM-DD calendar dates in both AD and Buddhist Era', () => {
+    expect(formatThaiDate('2026-11-12')).toBe('12 พ.ย. 2569');
+    expect(formatThaiDate('2569-03-11')).toBe('11 มี.ค. 2569');
+  });
+
+  it('falls back safely on invalid calendar dates or empty values', () => {
+    expect(formatThaiDate(undefined)).toBe('—');
+    expect(formatThaiDate('')).toBe('—');
+    expect(parseFlexibleDate('31/02/2569')).toBeNull();
+    expect(formatThaiDate('31/02/2569')).toBe('31/02/2569');
+  });
+
+  it('converts flexible dates into YYYY-MM-DD for date inputs', () => {
+    expect(toDateInputValue('11/03/2569')).toBe('2026-03-11');
+    expect(toDateInputValue('29/2/2567')).toBe('2024-02-29');
+    expect(toDateInputValue('2026-11-12')).toBe('2026-11-12');
+    expect(toDateInputValue('invalid')).toBe('');
+  });
+
+  it('sorts acquisitionDate accurately across DD/MM/YYYY Thai BE and YYYY-MM-DD AD strings', () => {
+    const base = {
+      name: 'Item',
+      location: 'A',
+      status: 'พร้อมใช้งาน' as const,
+      responsiblePerson: 'A',
+      recordedBy: 'Admin',
+      notes: '',
+      createdAt: '2026-01-01T00:00:00Z',
+      updatedAt: '2026-01-01T00:00:00Z',
+    };
+    const items: AssetRecord[] = [
+      { ...base, id: '1', assetCode: 'A1', acquisitionDate: '11/03/2569' }, // 2026-03-11
+      { ...base, id: '2', assetCode: 'A2', acquisitionDate: '21/10/2558' }, // 2015-10-21
+      { ...base, id: '3', assetCode: 'A3', acquisitionDate: '2026-01-05' }, // 2026-01-05
+    ];
+
+    const asc = sortRecords(items, 'acquisitionDate', 'asc');
+    expect(asc.map((r) => r.id)).toEqual(['2', '3', '1']);
+  });
+});
+
 
 
 

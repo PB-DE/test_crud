@@ -28,6 +28,7 @@ import {
   SessionUser,
 } from '@/lib/types';
 import { findAssetByCode } from '@/lib/ui-helpers';
+import { toDateInputValue } from '@/lib/filter-utils';
 import { compressImage } from '@/lib/image-utils';
 import { QrScannerModal } from './QrScannerModal';
 import { CameraCaptureModal } from './CameraCaptureModal';
@@ -940,7 +941,7 @@ export function RecordModal({
               <input
                 id="field-acquisitionDate"
                 type="date"
-                value={formData.acquisitionDate || ''}
+                value={toDateInputValue(formData.acquisitionDate)}
                 onChange={(e) => {
                   setFormData({ ...formData, acquisitionDate: e.target.value });
                   if (errors.acquisitionDate) setErrors({ ...errors, acquisitionDate: '' });

@@ -90,8 +90,8 @@ export function sortRecords(
 
     // Handle date comparisons
     if (field === 'createdAt' || field === 'updatedAt' || field === 'acquisitionDate') {
-      const timeA = new Date(valA).getTime() || 0;
-      const timeB = new Date(valB).getTime() || 0;
+      const timeA = parseFlexibleDate(String(valA))?.getTime() ?? 0;
+      const timeB = parseFlexibleDate(String(valB))?.getTime() ?? 0;
       return (timeA - timeB) * multiplier;
     }
 
@@ -192,13 +192,89 @@ export function formatLogDateTime(dateString?: string): string {
 }
 
 /**
+ * Parses ISO timestamps, YYYY-MM-DD, and DD/MM/YYYY (including Thai Buddhist Era years >= 2400)
+ * into a local/Gregorian Date object without US MM/DD swapping or double +543 year offset.
+ */
+export function parseFlexibleDate(dateString?: string): Date | null {
+  if (!dateString) return null;
+  const raw = dateString.trim();
+  if (!raw) return null;
+
+  const buildValidatedDate = (adYear: number, month: number, day: number): Date | null => {
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    const d = new Date(adYear, month - 1, day);
+    if (d.getFullYear() !== adYear || d.getMonth() !== month - 1 || d.getDate() !== day) {
+      return null;
+    }
+    return d;
+  };
+
+  // DD/MM/YYYY or D/M/YYYY (e.g. "11/03/2569", "29/2/2567", "30/05/1961")
+  const dmyMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmyMatch) {
+    const day = Number(dmyMatch[1]);
+    const month = Number(dmyMatch[2]);
+    const rawYear = Number(dmyMatch[3]);
+    const adYear = rawYear >= 2400 ? rawYear - 543 : rawYear;
+    return buildValidatedDate(adYear, month, day);
+  }
+
+  // YYYY-MM-DD (e.g. "2026-03-11" from <input type="date"> or "2569-03-11")
+  const ymdMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (ymdMatch) {
+    const rawYear = Number(ymdMatch[1]);
+    const month = Number(ymdMatch[2]);
+    const day = Number(ymdMatch[3]);
+    const adYear = rawYear >= 2400 ? rawYear - 543 : rawYear;
+    return buildValidatedDate(adYear, month, day);
+  }
+
+  try {
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Formats ISO/calendar/Thai-BE date strings to Thai locale date (e.g. 11 มี.ค. 2569).
+ */
+export function formatThaiDate(dateString?: string): string {
+  if (!dateString) return '—';
+  const d = parseFlexibleDate(dateString);
+  if (!d) return dateString;
+  try {
+    return d.toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  } catch {
+    return dateString;
+  }
+}
+
+/**
+ * Converts ISO/calendar/Thai-BE date strings into YYYY-MM-DD for <input type="date">.
+ */
+export function toDateInputValue(dateString?: string): string {
+  const d = parseFlexibleDate(dateString);
+  if (!d) return '';
+  const yyyy = String(d.getFullYear()).padStart(4, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/**
  * Formats ISO timestamp to Thai locale date with 24-hour HH:MM time (e.g. 12 พ.ย. 2569 18:39).
  */
 export function formatDateTime24(dateString?: string): string {
   if (!dateString) return '—';
+  const d = parseFlexibleDate(dateString);
+  if (!d) return dateString;
   try {
-    const d = new Date(dateString);
-    if (isNaN(d.getTime())) return dateString;
     const datePart = d.toLocaleDateString('th-TH', {
       year: 'numeric',
       month: 'short',
