@@ -20,3 +20,4 @@ const SettingsView = dynamic(
 export default function SettingsPage() {
   return <SettingsView />;
 }
+
