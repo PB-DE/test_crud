@@ -19,7 +19,7 @@ import {
   ClipboardCheck,
 } from 'lucide-react';
 import { AssetRecord, AssetStatus, ASSET_STATUSES, UserRole } from '@/lib/types';
-import { SortField, SortDirection } from '@/lib/filter-utils';
+import { SortField, SortDirection, formatDateTime24 } from '@/lib/filter-utils';
 
 export interface RecordTableProps {
   records: AssetRecord[];
@@ -470,7 +470,7 @@ export function RecordTable({
 
                   {/* อัปเดตล่าสุด */}
                   <td className="py-3.5 px-4 sm:px-5 text-slate-500 tabular-nums text-xs sm:text-sm whitespace-nowrap">
-                    {formatDate(record.updatedAt || record.createdAt)}
+                    {formatDateTime24(record.updatedAt || record.createdAt)}
                   </td>
 
                   {/* จัดการ */}

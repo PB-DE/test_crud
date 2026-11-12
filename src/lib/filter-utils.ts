@@ -192,6 +192,30 @@ export function formatLogDateTime(dateString?: string): string {
 }
 
 /**
+ * Formats ISO timestamp to Thai locale date with 24-hour HH:MM time (e.g. 12 พ.ย. 2569 18:39).
+ */
+export function formatDateTime24(dateString?: string): string {
+  if (!dateString) return '—';
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
+    const datePart = d.toLocaleDateString('th-TH', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+    const timePart = d.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    return `${datePart} ${timePart}`;
+  } catch {
+    return dateString;
+  }
+}
+
+/**
  * Filters change logs in real-time matching across assetCode, name, action,
  * location changes, responsible person changes, status changes, summary, recordedBy, and notes.
  */

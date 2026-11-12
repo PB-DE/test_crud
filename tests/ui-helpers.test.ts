@@ -4,6 +4,7 @@ import {
   sortRecords,
   filterLogs,
   formatLogDateTime,
+  formatDateTime24,
   getActionBadgeStyle,
 } from '../src/lib/filter-utils';
 import { findAssetByCode, reconcileAssetRecords } from '../src/lib/ui-helpers';
@@ -634,5 +635,27 @@ describe('sortRecords by updatedAt (indicator of latest state)', () => {
     expect(sortedAsc[1].id).toBe('2');
   });
 });
+
+describe('formatDateTime24', () => {
+  it('returns em dash when dateString is empty or missing', () => {
+    expect(formatDateTime24(undefined)).toBe('—');
+    expect(formatDateTime24('')).toBe('—');
+  });
+
+  it('returns raw input when dateString is invalid', () => {
+    expect(formatDateTime24('invalid-date')).toBe('invalid-date');
+  });
+
+  it('formats Thai date with 24-hour HH:MM time in the afternoon/evening', () => {
+    const dt = new Date(2026, 10, 12, 18, 39).toISOString();
+    expect(formatDateTime24(dt)).toBe('12 พ.ย. 2569 18:39');
+  });
+
+  it('formats midnight as 00:MM in 24-hour HH:MM format', () => {
+    const dt = new Date(2026, 10, 12, 0, 5).toISOString();
+    expect(formatDateTime24(dt)).toBe('12 พ.ย. 2569 00:05');
+  });
+});
+
 
 
