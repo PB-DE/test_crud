@@ -16,7 +16,12 @@ import {
   ConfigurableFieldKey,
   DEFAULT_FIELD_SETTINGS,
   SystemOptionsPayload,
+  UserAccount,
+  StoredUserRecord,
+  UserRole,
+  isValidUserRole,
 } from './types';
+import { hashPassword } from './password';
 import {
   computeAssetDiff,
   normalizeAssetCode,
@@ -66,6 +71,19 @@ export const FIELD_SETTINGS_HEADER_ROW = [
   'รองรับ Dropdown',
 ];
 export const RANGE_FIELD_SETTINGS_ALL = 'FieldSettings!A:E';
+
+export const USERS_SHEET_NAME = 'Users';
+export const USERS_HEADER_ROW = [
+  'ID',
+  'Username',
+  'PasswordHash',
+  'DisplayName',
+  'Role',
+  'Active',
+  'CreatedAt',
+  'UpdatedAt',
+];
+export const RANGE_USERS_ALL = 'Users!A:H';
 
 export const LOG_HEADER_ROW = [
   'Log ID',
@@ -177,10 +195,42 @@ const INITIAL_DEMO_DROPDOWNS: DropdownOption[] = [
   { id: 'opt-loc-5', fieldKey: 'location', value: 'คลังพัสดุ' },
 ];
 
+let cachedDefaultAdminHash: string | null = null;
+function getDefaultAdminHash(): string {
+  if (!cachedDefaultAdminHash) {
+    cachedDefaultAdminHash = hashPassword('admin1234');
+  }
+  return cachedDefaultAdminHash;
+}
+
+function buildSeedUsers(): StoredUserRecord[] {
+  const now = '2026-01-01T00:00:00.000Z';
+  return [
+    {
+      id: 'user-admin-default',
+      username: 'admin',
+      passwordHash: getDefaultAdminHash(),
+      displayName: 'ผู้ดูแลระบบ (Admin)',
+      role: 'admin',
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
+}
+
 let demoTransactions: AssetTransaction[] = INITIAL_DEMO_TRANSACTIONS.map((t) => ({ ...t }));
 let demoLogsStore: AssetLogRecord[] = [];
 let demoDropdownsStore: DropdownOption[] = INITIAL_DEMO_DROPDOWNS.map((o) => ({ ...o }));
 let demoFieldSettingsStore: FieldSetting[] = DEFAULT_FIELD_SETTINGS.map((s) => ({ ...s }));
+let demoUsersStore: StoredUserRecord[] | null = null;
+
+function getDemoUsersStore(): StoredUserRecord[] {
+  if (!demoUsersStore) {
+    demoUsersStore = buildSeedUsers();
+  }
+  return demoUsersStore;
+}
 
 export class AssetCollisionError extends Error {
   code = 'COLLISION';
@@ -677,6 +727,74 @@ function mergeFieldSettingsWithDefaults(parsed: FieldSetting[]): FieldSetting[] 
   });
 }
 
+async function ensureUsersSheet(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string
+): Promise<string[][]> {
+  await ensureSheetExists(sheets, spreadsheetId, USERS_SHEET_NAME);
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: RANGE_USERS_ALL,
+  });
+
+  const values = res?.data?.values;
+  if (!values || values.length === 0 || !values[0] || values[0].length === 0) {
+    const seedRows = buildSeedUsers().map((u) => [
+      u.id,
+      u.username,
+      u.passwordHash,
+      u.displayName,
+      u.role,
+      u.active ? 'TRUE' : 'FALSE',
+      u.createdAt,
+      u.updatedAt,
+    ]);
+    const allRows = [USERS_HEADER_ROW, ...seedRows];
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${USERS_SHEET_NAME}!A1:H${allRows.length}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: allRows },
+    });
+    return allRows;
+  }
+
+  return values;
+}
+
+function rowToStoredUser(row: string[]): StoredUserRecord | null {
+  const id = String(row?.[0] ?? '').trim();
+  const username = String(row?.[1] ?? '').trim();
+  const passwordHash = String(row?.[2] ?? '').trim();
+  const displayName = String(row?.[3] ?? '').trim();
+  const roleCandidate = String(row?.[4] ?? '').trim();
+  if (!id || !username || !passwordHash) return null;
+
+  return {
+    id,
+    username,
+    passwordHash,
+    displayName: displayName || username,
+    role: isValidUserRole(roleCandidate) ? roleCandidate : 'staff',
+    active: parseBoolCell(row?.[5], true),
+    createdAt: String(row?.[6] ?? '').trim() || new Date().toISOString(),
+    updatedAt: String(row?.[7] ?? '').trim() || new Date().toISOString(),
+  };
+}
+
+function toPublicUser(user: StoredUserRecord): UserAccount {
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    role: user.role,
+    active: user.active,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
+}
+
 export async function ensureLogsSheet(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string
@@ -740,6 +858,7 @@ export const sheetsService = {
     demoLogsStore = [];
     demoDropdownsStore = INITIAL_DEMO_DROPDOWNS.map((o) => ({ ...o }));
     demoFieldSettingsStore = DEFAULT_FIELD_SETTINGS.map((s) => ({ ...s }));
+    demoUsersStore = null;
   },
 
   async getTransactions(): Promise<AssetTransaction[]> {
@@ -1034,11 +1153,12 @@ export const sheetsService = {
       return trimmed.length > 0 ? trimmed : undefined;
     };
 
+    const isInspection = Boolean(sanitizedData.isInspection);
     const now = sanitizedData.updatedAt ?? new Date().toISOString();
     const newTx: AssetTransaction = {
       id: generateId(),
       timestamp: now,
-      action: 'แก้ไข/ย้ายตำแหน่ง',
+      action: isInspection ? 'ตรวจเช็กครุภัณฑ์' : 'แก้ไข/ย้ายตำแหน่ง',
       assetCode: sanitizedData.assetCode !== undefined ? sanitizedData.assetCode : existing.assetCode,
       name: sanitizedData.name !== undefined ? sanitizedData.name : existing.name,
       location: sanitizedData.location !== undefined ? sanitizedData.location : existing.location,
@@ -1086,14 +1206,34 @@ export const sheetsService = {
       sanitizedData.notes
     );
 
-    if (diff) {
-      const logRecord: AssetLogRecord = {
-        id: generateId(),
-        timestamp: newTx.timestamp,
-        ...diff,
-        assetId: existing.id,
-        imageUrl: diff.imageUrl || newTx.imageUrl || existing.imageUrl || undefined,
-      };
+    if (diff || isInspection) {
+      const logRecord: AssetLogRecord = diff
+        ? {
+            id: generateId(),
+            timestamp: newTx.timestamp,
+            ...diff,
+            action: isInspection ? 'ตรวจเช็กครุภัณฑ์' : diff.action,
+            changeSummary: isInspection
+              ? `ตรวจเช็กครุภัณฑ์ (${diff.changeSummary})`
+              : diff.changeSummary,
+            assetId: existing.id,
+            imageUrl: diff.imageUrl || newTx.imageUrl || existing.imageUrl || undefined,
+          }
+        : {
+            id: generateId(),
+            timestamp: newTx.timestamp,
+            action: 'ตรวจเช็กครุภัณฑ์',
+            assetId: existing.id,
+            assetCode: newTx.assetCode,
+            name: newTx.name,
+            locationChange: '-',
+            responsibleChange: '-',
+            statusChange: '-',
+            changeSummary: 'ตรวจเช็กครุภัณฑ์ (ไม่พบการเปลี่ยนแปลง)',
+            recordedBy: newTx.recordedBy || 'ระบบ',
+            notes: newTx.notes || '',
+            imageUrl: newTx.imageUrl || existing.imageUrl || undefined,
+          };
       try {
         await this.appendLog(logRecord);
       } catch (logErr) {
@@ -1380,6 +1520,142 @@ export const sheetsService = {
 
     const next = current.filter((o) => o.id !== id);
     await this._persistDropdownOptions(next, current.length);
+    return true;
+  },
+
+  async _getStoredUsers(): Promise<StoredUserRecord[]> {
+    const client = getSheetsClient();
+    if (!client) {
+      return getDemoUsersStore().map((u) => ({ ...u }));
+    }
+
+    const { sheets, spreadsheetId } = client;
+    const values = await ensureUsersSheet(sheets, spreadsheetId);
+    return values
+      .slice(1)
+      .map(rowToStoredUser)
+      .filter((u): u is StoredUserRecord => u !== null);
+  },
+
+  async _persistUsers(users: StoredUserRecord[], previousCount = 0): Promise<void> {
+    const client = getSheetsClient();
+    if (!client) {
+      demoUsersStore = users.map((u) => ({ ...u }));
+      return;
+    }
+
+    const { sheets, spreadsheetId } = client;
+    const rows = users.map((u) => [
+      u.id,
+      u.username,
+      u.passwordHash,
+      u.displayName,
+      u.role,
+      u.active ? 'TRUE' : 'FALSE',
+      u.createdAt,
+      u.updatedAt,
+    ]);
+    const allRows: string[][] = [USERS_HEADER_ROW, ...rows];
+
+    const totalNeeded = Math.max(allRows.length, previousCount + 1);
+    while (allRows.length < totalNeeded) {
+      allRows.push(['', '', '', '', '', '', '', '']);
+    }
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${USERS_SHEET_NAME}!A1:H${allRows.length}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: allRows },
+    });
+  },
+
+  async getUsers(): Promise<UserAccount[]> {
+    const stored = await this._getStoredUsers();
+    return stored.map(toPublicUser);
+  },
+
+  async findUserForAuth(username: string): Promise<StoredUserRecord | null> {
+    const normalized = (username || '').trim().toLowerCase();
+    if (!normalized) return null;
+    const stored = await this._getStoredUsers();
+    return stored.find((u) => u.username.trim().toLowerCase() === normalized) ?? null;
+  },
+
+  async getUserById(id: string): Promise<UserAccount | null> {
+    const stored = await this._getStoredUsers();
+    const match = stored.find((u) => u.id === id);
+    return match ? toPublicUser(match) : null;
+  },
+
+  async createUser(input: {
+    username: string;
+    password: string;
+    displayName: string;
+    role: UserRole;
+    active?: boolean;
+  }): Promise<UserAccount> {
+    const current = await this._getStoredUsers();
+    const normalized = input.username.trim().toLowerCase();
+    if (current.some((u) => u.username.trim().toLowerCase() === normalized)) {
+      const err: any = new Error(`ชื่อผู้ใช้ "${input.username.trim()}" มีอยู่ในระบบแล้ว`);
+      err.code = 'DUPLICATE_USERNAME';
+      throw err;
+    }
+
+    const now = new Date().toISOString();
+    const newUser: StoredUserRecord = {
+      id: `user-${generateId()}`,
+      username: input.username.trim(),
+      passwordHash: hashPassword(input.password),
+      displayName: input.displayName.trim(),
+      role: input.role,
+      active: input.active !== undefined ? input.active : true,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this._persistUsers([...current, newUser], current.length);
+    return toPublicUser(newUser);
+  },
+
+  async updateUser(
+    id: string,
+    input: {
+      displayName?: string;
+      role?: UserRole;
+      active?: boolean;
+      password?: string;
+    }
+  ): Promise<UserAccount | null> {
+    const current = await this._getStoredUsers();
+    const idx = current.findIndex((u) => u.id === id);
+    if (idx === -1) return null;
+
+    const existing = current[idx];
+    const now = new Date().toISOString();
+    const updated: StoredUserRecord = {
+      ...existing,
+      ...(input.displayName !== undefined ? { displayName: input.displayName.trim() } : {}),
+      ...(input.role !== undefined && isValidUserRole(input.role) ? { role: input.role } : {}),
+      ...(input.active !== undefined ? { active: input.active } : {}),
+      ...(input.password && input.password.length > 0
+        ? { passwordHash: hashPassword(input.password) }
+        : {}),
+      updatedAt: now,
+    };
+
+    const next = current.map((u) => (u.id === id ? updated : u));
+    await this._persistUsers(next, current.length);
+    return toPublicUser(updated);
+  },
+
+  async deleteUser(id: string): Promise<boolean> {
+    const current = await this._getStoredUsers();
+    if (!current.some((u) => u.id === id)) return false;
+
+    const next = current.filter((u) => u.id !== id);
+    await this._persistUsers(next, current.length);
     return true;
   },
 };

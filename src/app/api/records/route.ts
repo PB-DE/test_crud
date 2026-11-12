@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sheetsService, parseUnitPrice } from '@/lib/sheets';
+import { requireAuth, requireAdmin } from '@/lib/api-auth';
 import {
   isValidAssetStatus,
   ConfigurableFieldKey,
@@ -19,7 +20,10 @@ function isRequired(settings: FieldSetting[], key: ConfigurableFieldKey): boolea
   return settings.find((s) => s.fieldKey === key)?.required ?? false;
 }
 
-export async function GET(_request: Request) {
+export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const records = await sheetsService.getRecords();
     return NextResponse.json({
@@ -40,6 +44,9 @@ export async function GET(_request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAdmin(request);
+  if (!auth.ok) return auth.response;
+
   let body: any;
   try {
     body = await request.json();
@@ -97,12 +104,8 @@ export async function POST(request: Request) {
     );
   }
 
-  if (isRequired(fieldSettings, 'recordedBy') && !hasStr(recordedBy)) {
-    return NextResponse.json(
-      { success: false, error: 'Recorded by is required' },
-      { status: 400 }
-    );
-  }
+  // recordedBy is always enforced from the authenticated user's login name
+  const effectiveRecordedBy = auth.user.displayName || auth.user.username;
 
   if (isRequired(fieldSettings, 'mainCategory') && !hasStr(mainCategory)) {
     return NextResponse.json(
@@ -176,7 +179,7 @@ export async function POST(request: Request) {
       location: typeof location === 'string' ? location.trim() : '',
       status: recordStatus,
       responsiblePerson: typeof responsiblePerson === 'string' ? responsiblePerson.trim() : '',
-      recordedBy: typeof recordedBy === 'string' ? recordedBy.trim() : '',
+      recordedBy: effectiveRecordedBy,
       notes: typeof notes === 'string' ? notes.trim() : '',
       imageUrl: typeof imageUrl === 'string' && imageUrl.trim().length > 0 ? imageUrl.trim() : undefined,
       mainCategory: typeof mainCategory === 'string' && mainCategory.trim().length > 0 ? mainCategory.trim() : undefined,

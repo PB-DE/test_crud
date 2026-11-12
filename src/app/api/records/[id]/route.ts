@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sheetsService, parseUnitPrice } from '@/lib/sheets';
+import { requireAuth, requireAdmin } from '@/lib/api-auth';
 import {
   isValidAssetStatus,
   UpdateAssetInput,
@@ -25,9 +26,12 @@ type RouteContext = {
 };
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: RouteContext
 ) {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const { id } = await context.params;
 
@@ -67,6 +71,9 @@ export async function PUT(
   request: Request,
   context: RouteContext
 ) {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth.response;
+
   let body: any;
   try {
     body = await request.json();
@@ -83,7 +90,6 @@ export async function PUT(
     location,
     status,
     responsiblePerson,
-    recordedBy,
     notes,
     imageUrl,
     mainCategory,
@@ -91,7 +97,33 @@ export async function PUT(
     acquisitionDate,
     unitPrice,
     budgetSource,
+    isInspection,
   } = body || {};
+
+  // Staff role can only update status, notes, and imageUrl (and trigger inspection log)
+  if (auth.user.role === 'staff') {
+    const forbiddenFields = [
+      assetCode,
+      name,
+      location,
+      responsiblePerson,
+      mainCategory,
+      subCategory,
+      acquisitionDate,
+      unitPrice,
+      budgetSource,
+    ];
+    if (forbiddenFields.some((val) => val !== undefined)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'สิทธิ์ Staff สามารถอัปเดตได้เฉพาะ สถานะ, หมายเหตุ และรูปภาพเท่านั้น',
+        },
+        { status: 403 }
+      );
+    }
+  }
+
   const fieldSettings = await loadSafeFieldSettings();
   const updateData: UpdateAssetInput = {};
 
@@ -152,14 +184,11 @@ export async function PUT(
     updateData.responsiblePerson = typeof responsiblePerson === 'string' ? responsiblePerson.trim() : '';
   }
 
-  if (recordedBy !== undefined) {
-    if (isRequired(fieldSettings, 'recordedBy') && (typeof recordedBy !== 'string' || recordedBy.trim().length === 0)) {
-      return NextResponse.json(
-        { success: false, error: 'Recorded by cannot be empty' },
-        { status: 400 }
-      );
-    }
-    updateData.recordedBy = typeof recordedBy === 'string' ? recordedBy.trim() : '';
+  // recordedBy is always enforced from the authenticated user's session
+  updateData.recordedBy = auth.user.displayName || auth.user.username;
+
+  if (auth.user.role === 'staff' || isInspection === true) {
+    updateData.isInspection = true;
   }
 
   if (notes !== undefined) {
@@ -296,6 +325,9 @@ export async function DELETE(
   request: Request,
   context: RouteContext
 ) {
+  const auth = await requireAdmin(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const { id } = await context.params;
 
@@ -306,11 +338,9 @@ export async function DELETE(
       );
     }
 
-    let recordedBy: string | undefined;
     let notes: string | undefined;
     try {
       const url = new URL(request.url);
-      recordedBy = url.searchParams.get('recordedBy') || undefined;
       notes = url.searchParams.get('notes') || undefined;
     } catch {
       // ignore
@@ -318,12 +348,12 @@ export async function DELETE(
 
     try {
       const body = await request.json();
-      if (body?.recordedBy) recordedBy = body.recordedBy;
       if (body?.notes) notes = body.notes;
     } catch {
       // Body is optional
     }
 
+    const recordedBy = auth.user.displayName || auth.user.username;
     const success = await sheetsService.deleteRecord(id, recordedBy, notes);
     if (!success) {
       return NextResponse.json(

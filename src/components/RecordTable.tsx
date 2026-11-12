@@ -16,8 +16,9 @@ import {
   History,
   Camera,
   ZoomIn,
+  ClipboardCheck,
 } from 'lucide-react';
-import { AssetRecord, AssetStatus, ASSET_STATUSES } from '@/lib/types';
+import { AssetRecord, AssetStatus, ASSET_STATUSES, UserRole } from '@/lib/types';
 import { SortField, SortDirection } from '@/lib/filter-utils';
 
 export interface RecordTableProps {
@@ -35,6 +36,7 @@ export interface RecordTableProps {
   onDelete: (record: AssetRecord) => void;
   onAddNew: () => void;
   onViewHistory?: (record: AssetRecord) => void;
+  userRole?: UserRole;
 }
 
 export function RecordTable({
@@ -52,6 +54,7 @@ export function RecordTable({
   onDelete,
   onAddNew,
   onViewHistory,
+  userRole = 'admin',
 }: RecordTableProps) {
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
 
@@ -297,7 +300,7 @@ export function RecordTable({
                       >
                         ล้างตัวกรอง
                       </button>
-                    ) : (
+                    ) : userRole === 'admin' ? (
                       <button
                         type="button"
                         onClick={onAddNew}
@@ -305,7 +308,7 @@ export function RecordTable({
                       >
                         บันทึกครุภัณฑ์
                       </button>
-                    )}
+                    ) : null}
                   </div>
                 </td>
               </tr>
@@ -487,22 +490,40 @@ export function RecordTable({
                       <button
                         type="button"
                         onClick={() => onEdit(record)}
-                        aria-label={`แก้ไข ${record.name} (${record.assetCode})`}
-                        title="แก้ไขข้อมูลครุภัณฑ์"
-                        className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all active:scale-95 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        aria-label={
+                          userRole === 'staff'
+                            ? `ตรวจเช็ก ${record.name} (${record.assetCode})`
+                            : `แก้ไข ${record.name} (${record.assetCode})`
+                        }
+                        title={
+                          userRole === 'staff'
+                            ? 'ตรวจเช็ก / อัปเดตสถานะ'
+                            : 'แก้ไขข้อมูลครุภัณฑ์'
+                        }
+                        className={`p-2 rounded-lg transition-all active:scale-95 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 ${
+                          userRole === 'staff'
+                            ? 'text-teal-600 hover:text-teal-700 hover:bg-teal-50 focus:ring-teal-500/20'
+                            : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50 focus:ring-blue-500/20'
+                        }`}
                       >
-                        <Pencil className="w-4 h-4" />
+                        {userRole === 'staff' ? (
+                          <ClipboardCheck className="w-4 h-4" />
+                        ) : (
+                          <Pencil className="w-4 h-4" />
+                        )}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => onDelete(record)}
-                        disabled={record.status === 'จำหน่าย/ตัดบัญชี'}
-                        aria-label={`จำหน่าย/ตัดบัญชี ${record.name} (${record.assetCode})`}
-                        title={record.status === 'จำหน่าย/ตัดบัญชี' ? 'ครุภัณฑ์นี้จำหน่าย/ตัดบัญชีแล้ว' : 'จำหน่าย/ตัดบัญชีครุภัณฑ์'}
-                        className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all active:scale-95 cursor-pointer disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-rose-500/20"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {userRole === 'admin' && (
+                        <button
+                          type="button"
+                          onClick={() => onDelete(record)}
+                          disabled={record.status === 'จำหน่าย/ตัดบัญชี'}
+                          aria-label={`จำหน่าย/ตัดบัญชี ${record.name} (${record.assetCode})`}
+                          title={record.status === 'จำหน่าย/ตัดบัญชี' ? 'ครุภัณฑ์นี้จำหน่าย/ตัดบัญชีแล้ว' : 'จำหน่าย/ตัดบัญชีครุภัณฑ์'}
+                          className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all active:scale-95 cursor-pointer disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-500 disabled:cursor-not-allowed min-w-[36px] min-h-[36px] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-rose-500/20"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

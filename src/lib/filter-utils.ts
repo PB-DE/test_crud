@@ -136,6 +136,14 @@ export function getActionBadgeStyle(action: LogAction | string): ActionBadgeStyl
         dot: 'bg-blue-500',
         label: 'แก้ไข/ย้ายตำแหน่ง',
       };
+    case 'ตรวจเช็กครุภัณฑ์':
+      return {
+        bg: 'bg-teal-50',
+        text: 'text-teal-700',
+        border: 'border-teal-200/80',
+        dot: 'bg-teal-500',
+        label: 'ตรวจเช็กครุภัณฑ์',
+      };
     case 'จำหน่าย/ตัดบัญชี':
       return {
         bg: 'bg-rose-50',

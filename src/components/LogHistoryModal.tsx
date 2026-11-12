@@ -16,8 +16,9 @@ import {
   Camera,
   ZoomIn,
   Pencil,
+  ClipboardCheck,
 } from 'lucide-react';
-import { AssetRecord, AssetLogRecord } from '@/lib/types';
+import { AssetRecord, AssetLogRecord, UserRole } from '@/lib/types';
 import {
   filterLogs,
   formatLogDateTime,
@@ -31,6 +32,7 @@ export interface LogHistoryModalProps {
   isLoading: boolean;
   targetAsset?: AssetRecord | null;
   onEditAsset?: (asset: AssetRecord) => void;
+  userRole?: UserRole;
 }
 
 export function LogHistoryModal({
@@ -40,6 +42,7 @@ export function LogHistoryModal({
   isLoading,
   targetAsset,
   onEditAsset,
+  userRole = 'admin',
 }: LogHistoryModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingImage, setViewingImage] = useState<{ url: string; title: string } | null>(null);
@@ -173,11 +176,23 @@ export function LogHistoryModal({
                   onClose();
                   onEditAsset(targetAsset);
                 }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-xs transition-colors cursor-pointer"
-                title={`เปลี่ยนแปลงข้อมูล ${targetAsset.assetCode}`}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-xl shadow-xs transition-colors cursor-pointer ${
+                  userRole === 'staff'
+                    ? 'bg-teal-600 hover:bg-teal-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+                title={
+                  userRole === 'staff'
+                    ? `ตรวจเช็กสถานะ ${targetAsset.assetCode}`
+                    : `เปลี่ยนแปลงข้อมูล ${targetAsset.assetCode}`
+                }
               >
-                <Pencil className="w-3.5 h-3.5" />
-                <span>เปลี่ยนแปลงข้อมูล</span>
+                {userRole === 'staff' ? (
+                  <ClipboardCheck className="w-3.5 h-3.5" />
+                ) : (
+                  <Pencil className="w-3.5 h-3.5" />
+                )}
+                <span>{userRole === 'staff' ? 'ตรวจเช็กสถานะ' : 'เปลี่ยนแปลงข้อมูล'}</span>
               </button>
             )}
             <button

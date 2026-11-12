@@ -7,7 +7,11 @@ export const ASSET_STATUSES: AssetStatus[] = [
   'จำหน่าย/ตัดบัญชี',
 ];
 
-export type TransactionAction = 'บันทึกรายการใหม่' | 'แก้ไข/ย้ายตำแหน่ง' | 'จำหน่าย/ตัดบัญชี';
+export type TransactionAction =
+  | 'บันทึกรายการใหม่'
+  | 'แก้ไข/ย้ายตำแหน่ง'
+  | 'ตรวจเช็กครุภัณฑ์'
+  | 'จำหน่าย/ตัดบัญชี';
 
 export interface AssetTransaction {
   id: string;
@@ -50,13 +54,49 @@ export interface AssetRecord {
 }
 
 export type CreateAssetInput = Omit<AssetRecord, 'id' | 'createdAt' | 'updatedAt'>;
-export type UpdateAssetInput = Partial<Omit<AssetRecord, 'id' | 'createdAt'>>;
+export type UpdateAssetInput = Partial<Omit<AssetRecord, 'id' | 'createdAt'>> & {
+  isInspection?: boolean;
+};
 
 export function isValidAssetStatus(status: unknown): status is AssetStatus {
   return typeof status === 'string' && (ASSET_STATUSES as readonly string[]).includes(status);
 }
 
-export type LogAction = 'บันทึกรายการใหม่' | 'แก้ไข/ย้ายตำแหน่ง' | 'จำหน่าย/ตัดบัญชี' | 'ลบรายการ';
+export type LogAction =
+  | 'บันทึกรายการใหม่'
+  | 'แก้ไข/ย้ายตำแหน่ง'
+  | 'ตรวจเช็กครุภัณฑ์'
+  | 'จำหน่าย/ตัดบัญชี'
+  | 'ลบรายการ';
+
+export type UserRole = 'admin' | 'staff';
+
+export const USER_ROLES: UserRole[] = ['admin', 'staff'];
+
+export function isValidUserRole(role: unknown): role is UserRole {
+  return typeof role === 'string' && (USER_ROLES as readonly string[]).includes(role);
+}
+
+export interface UserAccount {
+  id: string;
+  username: string;
+  displayName: string;
+  role: UserRole;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StoredUserRecord extends UserAccount {
+  passwordHash: string;
+}
+
+export interface SessionUser {
+  id: string;
+  username: string;
+  displayName: string;
+  role: UserRole;
+}
 
 export interface AssetLogRecord {
   id: string;

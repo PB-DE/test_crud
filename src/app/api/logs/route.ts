@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { sheetsService } from '@/lib/sheets';
+import { requireAuth } from '@/lib/api-auth';
 
 export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const { searchParams } = new URL(request.url);
     const rawAssetId = searchParams.get('assetId');

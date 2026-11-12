@@ -13,6 +13,8 @@ import {
   Image as ImageIcon,
   Trash2,
   Check,
+  ClipboardCheck,
+  Lock,
 } from 'lucide-react';
 import {
   AssetRecord,
@@ -23,6 +25,7 @@ import {
   FieldSetting,
   ConfigurableFieldKey,
   DEFAULT_FIELD_SETTINGS,
+  SessionUser,
 } from '@/lib/types';
 import { findAssetByCode } from '@/lib/ui-helpers';
 import { compressImage } from '@/lib/image-utils';
@@ -43,6 +46,7 @@ export interface RecordModalFormData {
   acquisitionDate?: string;
   unitPrice?: number | string;
   budgetSource?: string;
+  isInspection?: boolean;
 }
 
 export type AssetInput = RecordModalFormData;
@@ -54,6 +58,8 @@ export interface RecordModalProps {
   records?: AssetRecord[];
   dropdownOptions?: DropdownOption[];
   fieldSettings?: FieldSetting[];
+  currentUser?: SessionUser | null;
+  isInspectionMode?: boolean;
   isSubmitting?: boolean;
   onSubmit?: (data: RecordModalFormData, id?: string) => Promise<void> | void;
   onSave?: (data: RecordModalFormData, id?: string) => Promise<void> | void;
@@ -68,6 +74,8 @@ export function RecordModal({
   records = [],
   dropdownOptions = [],
   fieldSettings = DEFAULT_FIELD_SETTINGS,
+  currentUser = null,
+  isInspectionMode = false,
   isSubmitting = false,
   onSubmit,
   onSave,
@@ -76,6 +84,7 @@ export function RecordModal({
 }: RecordModalProps) {
   const activeRecord = record ?? initialData ?? null;
   const isEditing = Boolean(activeRecord);
+  const isStaffMode = Boolean(isInspectionMode || currentUser?.role === 'staff');
 
   const [formData, setFormData] = useState<RecordModalFormData>({
     assetCode: '',
@@ -146,6 +155,7 @@ export function RecordModal({
 
   useEffect(() => {
     if (isOpen) {
+      const autoRecordedBy = currentUser?.displayName || activeRecord?.recordedBy || '';
       if (activeRecord) {
         setFormData({
           assetCode: activeRecord.assetCode || '',
@@ -153,7 +163,7 @@ export function RecordModal({
           location: activeRecord.location || '',
           status: activeRecord.status || 'พร้อมใช้งาน',
           responsiblePerson: activeRecord.responsiblePerson || '',
-          recordedBy: activeRecord.recordedBy || '',
+          recordedBy: autoRecordedBy,
           notes: activeRecord.notes || '',
           imageUrl: activeRecord.imageUrl || '',
           mainCategory: activeRecord.mainCategory || '',
@@ -172,7 +182,7 @@ export function RecordModal({
           location: '',
           status: 'พร้อมใช้งาน',
           responsiblePerson: '',
-          recordedBy: '',
+          recordedBy: currentUser?.displayName || '',
           notes: '',
           imageUrl: '',
           mainCategory: '',
@@ -197,7 +207,7 @@ export function RecordModal({
         document.body.style.overflow = 'unset';
       };
     }
-  }, [isOpen, activeRecord]);
+  }, [isOpen, activeRecord, currentUser]);
 
   // Synchronize name, photo, and prefilled fields when assetCode changes
   useEffect(() => {
@@ -285,6 +295,14 @@ export function RecordModal({
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
+    if (isStaffMode) {
+      if (getFieldRule('notes').required && !formData.notes.trim()) {
+        newErrors.notes = 'กรุณากรอกหมายเหตุ';
+      }
+      setErrors(newErrors);
+      return Object.keys(newErrors).length === 0;
+    }
+
     if (!formData.assetCode.trim()) {
       newErrors.assetCode = 'กรุณากรอกรหัสครุภัณฑ์';
     }
@@ -327,7 +345,8 @@ export function RecordModal({
       newErrors.responsiblePerson = 'กรุณาระบุชื่อผู้รับผิดชอบ';
     }
 
-    if (getFieldRule('recordedBy').required && !formData.recordedBy.trim()) {
+    const effectiveRecordedBy = currentUser?.displayName || formData.recordedBy;
+    if (getFieldRule('recordedBy').required && !effectiveRecordedBy.trim()) {
       newErrors.recordedBy = 'กรุณาระบุชื่อผู้บันทึก';
     }
 
@@ -406,11 +425,21 @@ export function RecordModal({
     }
 
     const rawUnitPrice = String(formData.unitPrice ?? '').trim();
-    const submissionData: RecordModalFormData = {
-      ...formData,
-      unitPrice: rawUnitPrice === '' ? '' : Number(rawUnitPrice),
-      imageUrl: sanitizedImageUrl || '',
-    };
+    const lockedRecordedBy = currentUser?.displayName || formData.recordedBy;
+
+    const submissionData: RecordModalFormData = isStaffMode
+      ? ({
+          status: formData.status,
+          notes: formData.notes,
+          imageUrl: sanitizedImageUrl || '',
+          isInspection: true,
+        } as RecordModalFormData)
+      : {
+          ...formData,
+          recordedBy: lockedRecordedBy,
+          unitPrice: rawUnitPrice === '' ? '' : Number(rawUnitPrice),
+          imageUrl: sanitizedImageUrl || '',
+        };
 
     if (onSave) {
       await onSave(submissionData, targetId);
@@ -542,8 +571,16 @@ export function RecordModal({
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-              {isEditing ? (
+            <div
+              className={`p-2 rounded-xl ${
+                isStaffMode
+                  ? 'bg-teal-50 text-teal-600'
+                  : 'bg-blue-50 text-blue-600'
+              }`}
+            >
+              {isStaffMode ? (
+                <ClipboardCheck className="w-5 h-5" />
+              ) : isEditing ? (
                 <PencilLine className="w-5 h-5" />
               ) : (
                 <PackagePlus className="w-5 h-5" />
@@ -551,18 +588,22 @@ export function RecordModal({
             </div>
             <div>
               <h3 id="modal-title" className="text-lg font-semibold text-slate-900">
-                {isEditing
-                  ? 'แก้ไขข้อมูลครุภัณฑ์'
-                  : existingAsset
-                  ? 'บันทึกการเปลี่ยนแปลงครุภัณฑ์'
-                  : 'บันทึกครุภัณฑ์ใหม่'}
+                {isStaffMode
+                  ? 'ตรวจเช็กสถานะครุภัณฑ์'
+                  : isEditing
+                    ? 'แก้ไขข้อมูลครุภัณฑ์'
+                    : existingAsset
+                      ? 'บันทึกการเปลี่ยนแปลงครุภัณฑ์'
+                      : 'บันทึกครุภัณฑ์ใหม่'}
               </h3>
               <p className="text-xs text-slate-500">
-                {isEditing
-                  ? 'แก้ไขรายละเอียดครุภัณฑ์'
-                  : existingAsset
-                  ? 'อัปเดตตำแหน่งหรือสถานะครุภัณฑ์'
-                  : 'ระบุข้อมูลครุภัณฑ์เพื่อบันทึกลงระบบ'}
+                {isStaffMode
+                  ? 'อัปเดตสถานะ หมายเหตุ รูปถ่าย หรือบันทึกผลการตรวจเช็กครั้งล่าสุด'
+                  : isEditing
+                    ? 'แก้ไขรายละเอียดครุภัณฑ์'
+                    : existingAsset
+                      ? 'อัปเดตตำแหน่งหรือสถานะครุภัณฑ์'
+                      : 'ระบุข้อมูลครุภัณฑ์เพื่อบันทึกลงระบบ'}
               </p>
             </div>
           </div>
@@ -593,85 +634,173 @@ export function RecordModal({
               </button>
             </div>
           )}
-          {/* Row 1: Asset Code & Status */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Asset Code */}
-            <div>
-              <label
-                htmlFor="field-assetCode"
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
-              >
-                รหัสครุภัณฑ์ <span className="text-rose-500">*</span>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  ref={firstInputRef}
-                  id="field-assetCode"
-                  list="asset-codes-list"
-                  type="text"
-                  disabled={isEditing}
-                  placeholder="เช่น EQ-2026-001"
-                  value={formData.assetCode}
-                  onChange={(e) => handleAssetCodeChange(e.target.value)}
-                  className={`flex-1 min-w-0 px-3.5 py-2 text-sm rounded-xl border ${
-                    isEditing
-                      ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
-                      : errors.assetCode
-                      ? 'border-rose-400 focus:ring-rose-500/20'
-                      : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
-                  } focus:outline-none focus:ring-2 transition-all font-mono tabular-nums`}
-                />
-                <button
-                  type="button"
-                  disabled={isEditing}
-                  onClick={() => setIsScannerOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-300 rounded-xl transition-colors shrink-0 shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  title="สแกน QR Code จากกล้อง"
-                >
-                  <QrCode className="w-3.5 h-3.5 text-slate-600" />
-                  <span>สแกน QR</span>
-                </button>
+          {isStaffMode ? (
+            <>
+              {/* Read-only Asset Summary for Staff Inspection */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4 space-y-2.5 text-xs">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
+                      {formData.assetCode}
+                    </span>
+                    <span className="font-semibold text-slate-900 truncate">
+                      {formData.name}
+                    </span>
+                  </div>
+                  {onViewHistory && formData.assetCode && (
+                    <button
+                      type="button"
+                      onClick={() => onViewHistory(formData.assetCode)}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 shrink-0 cursor-pointer"
+                    >
+                      <History className="w-3 h-3" />
+                      ประวัติ
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-slate-600">
+                  <div>
+                    <span className="font-medium text-slate-500">ตำแหน่ง:</span>{' '}
+                    <span className="font-semibold text-slate-800">{formData.location || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-slate-500">ผู้รับผิดชอบ:</span>{' '}
+                    <span className="font-semibold text-slate-800">{formData.responsiblePerson || '—'}</span>
+                  </div>
+                  {(formData.mainCategory || formData.subCategory) && (
+                    <div className="sm:col-span-2">
+                      <span className="font-medium text-slate-500">ประเภท:</span>{' '}
+                      <span className="font-semibold text-slate-800">
+                        {[formData.mainCategory, formData.subCategory].filter(Boolean).join(' / ')}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-              <datalist id="asset-codes-list">
-                {datalistOptions.map((r) => (
-                  <option key={r.id || r.assetCode} value={r.assetCode}>
-                    {r.name}
-                  </option>
-                ))}
-              </datalist>
-              {errors.assetCode && (
-                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.assetCode}</p>
-              )}
-            </div>
 
-            {/* Status */}
-            <div>
-              <label
-                htmlFor="field-status"
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
-              >
-                สถานะ
-              </label>
-              <select
-                id="field-status"
-                value={formData.status}
-                onChange={(e) => {
-                  setIsStatusModified(true);
-                  setFormData({
-                    ...formData,
-                    status: e.target.value as AssetStatus,
-                  });
-                }}
-                className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
-              >
-                {ASSET_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+              {/* Editable Status + Locked Recorder for Staff */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label
+                    htmlFor="field-status"
+                    className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
+                  >
+                    สถานะครุภัณฑ์ <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    id="field-status"
+                    value={formData.status}
+                    onChange={(e) => {
+                      setIsStatusModified(true);
+                      setFormData({
+                        ...formData,
+                        status: e.target.value as AssetStatus,
+                      });
+                    }}
+                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all cursor-pointer"
+                  >
+                    {ASSET_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
+                    ผู้บันทึก (ผู้ตรวจเช็ก)
+                  </label>
+                  <div className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 bg-slate-100 text-slate-700 flex items-center justify-between gap-2">
+                    <span className="font-medium truncate">
+                      {currentUser?.displayName || formData.recordedBy}
+                    </span>
+                    <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Admin Full Form: Row 1 Asset Code & Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Asset Code */}
+                <div>
+                  <label
+                    htmlFor="field-assetCode"
+                    className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
+                  >
+                    รหัสครุภัณฑ์ <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      ref={firstInputRef}
+                      id="field-assetCode"
+                      list="asset-codes-list"
+                      type="text"
+                      disabled={isEditing}
+                      placeholder="เช่น EQ-2026-001"
+                      value={formData.assetCode}
+                      onChange={(e) => handleAssetCodeChange(e.target.value)}
+                      className={`flex-1 min-w-0 px-3.5 py-2 text-sm rounded-xl border ${
+                        isEditing
+                          ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                          : errors.assetCode
+                          ? 'border-rose-400 focus:ring-rose-500/20'
+                          : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
+                      } focus:outline-none focus:ring-2 transition-all font-mono tabular-nums`}
+                    />
+                    <button
+                      type="button"
+                      disabled={isEditing}
+                      onClick={() => setIsScannerOpen(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed border border-slate-300 rounded-xl transition-colors shrink-0 shadow-2xs cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      title="สแกน QR Code จากกล้อง"
+                    >
+                      <QrCode className="w-3.5 h-3.5 text-slate-600" />
+                      <span>สแกน QR</span>
+                    </button>
+                  </div>
+                  <datalist id="asset-codes-list">
+                    {datalistOptions.map((r) => (
+                      <option key={r.id || r.assetCode} value={r.assetCode}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </datalist>
+                  {errors.assetCode && (
+                    <p className="mt-1 text-xs text-rose-600 font-medium">{errors.assetCode}</p>
+                  )}
+                </div>
+
+                {/* Status */}
+                <div>
+                  <label
+                    htmlFor="field-status"
+                    className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
+                  >
+                    สถานะ
+                  </label>
+                  <select
+                    id="field-status"
+                    value={formData.status}
+                    onChange={(e) => {
+                      setIsStatusModified(true);
+                      setFormData({
+                        ...formData,
+                        status: e.target.value as AssetStatus,
+                      });
+                    }}
+                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                  >
+                    {ASSET_STATUSES.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
           {/* Banner: Green if asset found in records, Orange if not found and typed */}
           {existingAsset ? (
@@ -876,33 +1005,49 @@ export function RecordModal({
             )}
           </div>
 
-          {/* Responsible Person & Recorded By Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {renderConfigurableInput(
-              'responsiblePerson',
-              'field-responsiblePerson',
-              'ผู้รับผิดชอบ',
-              formData.responsiblePerson,
-              (val) => {
-                setIsResponsibleModified(true);
-                setFormData({ ...formData, responsiblePerson: val });
-                if (errors.responsiblePerson) setErrors({ ...errors, responsiblePerson: '' });
-              },
-              'เช่น สมชาย ใจดี (ฝ่ายไอที)'
-            )}
+              {/* Responsible Person & Recorded By Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {renderConfigurableInput(
+                  'responsiblePerson',
+                  'field-responsiblePerson',
+                  'ผู้รับผิดชอบ',
+                  formData.responsiblePerson,
+                  (val) => {
+                    setIsResponsibleModified(true);
+                    setFormData({ ...formData, responsiblePerson: val });
+                    if (errors.responsiblePerson) setErrors({ ...errors, responsiblePerson: '' });
+                  },
+                  'เช่น สมชาย ใจดี (ฝ่ายไอที)'
+                )}
 
-            {renderConfigurableInput(
-              'recordedBy',
-              'field-recordedBy',
-              'ผู้บันทึก',
-              formData.recordedBy,
-              (val) => {
-                setFormData({ ...formData, recordedBy: val });
-                if (errors.recordedBy) setErrors({ ...errors, recordedBy: '' });
-              },
-              'เช่น เจ้าหน้าที่พัสดุ A'
-            )}
-          </div>
+                {currentUser ? (
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
+                      ผู้บันทึก
+                    </label>
+                    <div className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-200 bg-slate-100 text-slate-700 flex items-center justify-between gap-2">
+                      <span className="font-medium truncate">
+                        {currentUser.displayName}
+                      </span>
+                      <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    </div>
+                  </div>
+                ) : (
+                  renderConfigurableInput(
+                    'recordedBy',
+                    'field-recordedBy',
+                    'ผู้บันทึก',
+                    formData.recordedBy,
+                    (val) => {
+                      setFormData({ ...formData, recordedBy: val });
+                      if (errors.recordedBy) setErrors({ ...errors, recordedBy: '' });
+                    },
+                    'เช่น เจ้าหน้าที่พัสดุ A'
+                  )
+                )}
+              </div>
+            </>
+          )}
 
           {/* Asset Photo Section */}
           <div>
@@ -1035,15 +1180,33 @@ export function RecordModal({
             <button
               type="submit"
               disabled={isSubmitting || isUploading}
-              className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs shadow-blue-500/20 transition-all active:scale-[0.98] disabled:opacity-50 focus:ring-2 focus:ring-blue-500/20 focus:outline-none cursor-pointer"
+              className={`inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-white ${
+                isStaffMode
+                  ? 'bg-teal-600 hover:bg-teal-700 active:bg-teal-800 shadow-teal-500/20 focus:ring-teal-500/20'
+                  : 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800 shadow-blue-500/20 focus:ring-blue-500/20'
+              } rounded-xl shadow-xs transition-all active:scale-[0.98] disabled:opacity-50 focus:ring-2 focus:outline-none cursor-pointer`}
             >
               {isSubmitting || isUploading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{isUploading ? 'กำลังอัปโหลดรูปภาพ...' : isEditing || existingAsset ? 'กำลังบันทึก...' : 'กำลังสร้าง...'}</span>
+                  <span>
+                    {isUploading
+                      ? 'กำลังอัปโหลดรูปภาพ...'
+                      : isStaffMode
+                        ? 'กำลังบันทึกการตรวจเช็ก...'
+                        : isEditing || existingAsset
+                          ? 'กำลังบันทึก...'
+                          : 'กำลังสร้าง...'}
+                  </span>
                 </>
               ) : (
-                <span>{isEditing || existingAsset ? 'บันทึกการเปลี่ยนแปลง' : 'บันทึกข้อมูล'}</span>
+                <span>
+                  {isStaffMode
+                    ? 'บันทึกการตรวจเช็ก'
+                    : isEditing || existingAsset
+                      ? 'บันทึกการเปลี่ยนแปลง'
+                      : 'บันทึกข้อมูล'}
+                </span>
               )}
             </button>
           </div>

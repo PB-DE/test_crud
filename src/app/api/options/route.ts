@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sheetsService } from '@/lib/sheets';
+import { requireAuth, requireAdmin } from '@/lib/api-auth';
 import { DropdownFieldKey, FieldSetting } from '@/lib/types';
 
 const VALID_DROPDOWN_FIELD_KEYS: readonly DropdownFieldKey[] = [
@@ -19,7 +20,10 @@ function isValidDropdownFieldKey(val: unknown): val is DropdownFieldKey {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const data = await sheetsService.getOptionsAndSettings();
     return NextResponse.json({
@@ -40,6 +44,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAdmin(request);
+  if (!auth.ok) return auth.response;
+
   let body: any;
   try {
     body = await request.json();
@@ -104,6 +111,9 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const auth = await requireAdmin(request);
+  if (!auth.ok) return auth.response;
+
   let body: any;
   try {
     body = await request.json();
@@ -184,6 +194,9 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  const auth = await requireAdmin(request);
+  if (!auth.ok) return auth.response;
+
   const { searchParams } = new URL(request.url);
   let id = searchParams.get('id');
 

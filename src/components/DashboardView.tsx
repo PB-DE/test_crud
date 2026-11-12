@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Boxes,
   Plus,
@@ -11,6 +12,11 @@ import {
   ExternalLink,
   FileSpreadsheet,
   Settings2,
+  Users,
+  LogOut,
+  QrCode,
+  Shield,
+  ClipboardCheck,
 } from 'lucide-react';
 import {
   AssetRecord,
@@ -18,6 +24,7 @@ import {
   DropdownOption,
   FieldSetting,
   DEFAULT_FIELD_SETTINGS,
+  SessionUser,
 } from '@/lib/types';
 import {
   filterRecords,
@@ -32,9 +39,14 @@ import { RecordModal, RecordModalFormData } from '@/components/RecordModal';
 import { DeleteDialog } from '@/components/DeleteDialog';
 import { LogHistoryModal } from '@/components/LogHistoryModal';
 import { ReportModal } from '@/components/ReportModal';
+import { QrScannerModal } from '@/components/QrScannerModal';
 import { Toast, ToastProps } from '@/components/Toast';
 
 export default function DashboardView() {
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
+  const [isStaffScannerOpen, setIsStaffScannerOpen] = useState(false);
+
   // Data state
   const [records, setRecords] = useState<AssetRecord[]>([]);
   const [isLoadingRecords, setIsLoadingRecords] = useState(true);
@@ -152,12 +164,41 @@ export default function DashboardView() {
     }
   }, []);
 
+  // Fetch authenticated user session
+  const fetchCurrentUser = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/me');
+      if (res.status === 401) {
+        router.push('/login');
+        return;
+      }
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.user) {
+          setCurrentUser(json.user);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch current user:', err);
+    }
+  }, [router]);
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } finally {
+      router.push('/login');
+      router.refresh();
+    }
+  };
+
   // Initial load
   useEffect(() => {
+    fetchCurrentUser();
     fetchStatus();
     fetchRecords();
     fetchOptions();
-  }, [fetchStatus, fetchRecords, fetchOptions]);
+  }, [fetchCurrentUser, fetchStatus, fetchRecords, fetchOptions]);
 
   // Handle sort column click
   const handleSortChange = (field: SortField) => {
@@ -183,14 +224,27 @@ export default function DashboardView() {
     setIsSubmitting(true);
     const idToUpdate = targetId || editingRecord?.id;
     const isUpdate = Boolean(idToUpdate);
+    const isStaffInspection = currentUser?.role === 'staff' || Boolean(formData.isInspection);
     const url = isUpdate ? `/api/records/${idToUpdate}` : '/api/records';
     const method = isUpdate ? 'PUT' : 'POST';
+
+    const requestPayload = isStaffInspection
+      ? {
+          status: formData.status,
+          notes: formData.notes,
+          imageUrl: formData.imageUrl,
+          isInspection: true,
+        }
+      : formData;
+
+    const displayName = formData.name || editingRecord?.name || '';
+    const displayCode = formData.assetCode || editingRecord?.assetCode || '';
 
     try {
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(requestPayload),
       });
       const json = await res.json();
 
@@ -200,10 +254,16 @@ export default function DashboardView() {
         setEditingRecord(null);
         showToast(
           'success',
-          isUpdate
-            ? `อัปเดตข้อมูลครุภัณฑ์สำเร็จ: ${formData.name} (${formData.assetCode})`
-            : `บันทึกข้อมูลครุภัณฑ์สำเร็จ: ${formData.name} (${formData.assetCode})`,
-          isUpdate ? 'อัปเดตข้อมูลครุภัณฑ์สำเร็จ' : 'บันทึกข้อมูลครุภัณฑ์สำเร็จ'
+          isStaffInspection
+            ? `บันทึกการตรวจเช็กสำเร็จ: ${displayName} (${displayCode})`
+            : isUpdate
+              ? `อัปเดตข้อมูลครุภัณฑ์สำเร็จ: ${displayName} (${displayCode})`
+              : `บันทึกข้อมูลครุภัณฑ์สำเร็จ: ${displayName} (${displayCode})`,
+          isStaffInspection
+            ? 'บันทึกการตรวจเช็กสำเร็จ'
+            : isUpdate
+              ? 'อัปเดตข้อมูลครุภัณฑ์สำเร็จ'
+              : 'บันทึกข้อมูลครุภัณฑ์สำเร็จ'
         );
       } else {
         const msg = json.details
@@ -381,63 +441,121 @@ export default function DashboardView() {
             </div>
           </div>
 
-          {/* Action buttons */}
-          <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap sm:flex-nowrap">
-            <Link
-              href="/settings"
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
-              title="ตั้งค่าฟิลด์บังคับกรอกและตัวเลือก Dropdown"
-            >
-              <Settings2 className="w-4 h-4 text-slate-600" />
-              <span className="hidden sm:inline">ตั้งค่าตัวเลือก</span>
-              <span className="sm:hidden">ตั้งค่า</span>
-            </Link>
+          {/* Right Side: User Profile Bar + Action Buttons */}
+          <div className="flex flex-col items-start sm:items-end gap-2.5">
+            {currentUser && (
+              <div className="flex items-center gap-2 text-xs bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-2xs">
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold ${
+                    currentUser.role === 'admin'
+                      ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/80'
+                      : 'bg-teal-50 text-teal-700 border border-teal-200/80'
+                  }`}
+                >
+                  {currentUser.role === 'admin' ? (
+                    <Shield className="w-3 h-3" />
+                  ) : (
+                    <ClipboardCheck className="w-3 h-3" />
+                  )}
+                  {currentUser.role === 'admin' ? 'Admin' : 'Staff'}
+                </span>
+                <span className="font-semibold text-slate-800 max-w-[160px] truncate">
+                  {currentUser.displayName}
+                </span>
+                <span className="text-slate-300">|</span>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 font-medium cursor-pointer"
+                  title="ออกจากระบบ"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>ออกจากระบบ</span>
+                </button>
+              </div>
+            )}
 
-            <button
-              type="button"
-              onClick={() => setIsReportModalOpen(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
-              title="ดูรายงานสรุปจำนวนครุภัณฑ์แยกตามสถานะ และส่งออกเป็น PDF"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-blue-600" />
-              <span className="hidden sm:inline">รายงานสรุป</span>
-              <span className="sm:hidden">รายงาน</span>
-            </button>
+            {/* Action buttons */}
+            <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+              {currentUser?.role === 'admin' && (
+                <>
+                  <Link
+                    href="/users"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+                    title="จัดการบัญชีผู้ใช้งาน Admin และ Staff"
+                  >
+                    <Users className="w-4 h-4 text-indigo-600" />
+                    <span className="hidden md:inline">จัดการผู้ใช้</span>
+                  </Link>
 
-            <button
-              type="button"
-              onClick={() => handleOpenHistory()}
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
-              title="ดูประวัติการทำรายการทั้งหมดในระบบ"
-            >
-              <History className="w-4 h-4 text-slate-500" />
-              <span className="hidden sm:inline">ประวัติการเปลี่ยนแปลง</span>
-              <span className="sm:hidden">ประวัติ</span>
-            </button>
+                  <Link
+                    href="/settings"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+                    title="ตั้งค่าฟิลด์บังคับกรอกและตัวเลือก Dropdown"
+                  >
+                    <Settings2 className="w-4 h-4 text-slate-600" />
+                    <span className="hidden md:inline">ตั้งค่าตัวเลือก</span>
+                  </Link>
+                </>
+              )}
 
-            <button
-              type="button"
-              onClick={() => {
-                fetchRecords(true);
-                fetchOptions();
-              }}
-              disabled={isRefreshing || isLoadingRecords}
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`}
-              />
-              <span className="hidden sm:inline">รีเฟรช</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+                title="ดูรายงานสรุปจำนวนครุภัณฑ์แยกตามสถานะ และส่งออกเป็น PDF"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                <span className="hidden sm:inline">รายงานสรุป</span>
+                <span className="sm:hidden">รายงาน</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setIsAddModalOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs shadow-blue-500/20 transition-all active:scale-[0.98] cursor-pointer focus:ring-2 focus:ring-blue-500/30 focus:outline-none"
-            >
-              <Plus className="w-4 h-4" />
-              <span>บันทึกหรือเปลี่ยนแปลงครุภัณฑ์</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => handleOpenHistory()}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+                title="ดูประวัติการทำรายการทั้งหมดในระบบ"
+              >
+                <History className="w-4 h-4 text-slate-500" />
+                <span className="hidden sm:inline">ประวัติ</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  fetchRecords(true);
+                  fetchOptions();
+                }}
+                disabled={isRefreshing || isLoadingRecords}
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+                title="รีเฟรชข้อมูล"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`}
+                />
+                <span className="hidden lg:inline">รีเฟรช</span>
+              </button>
+
+              {currentUser?.role === 'staff' ? (
+                <button
+                  type="button"
+                  onClick={() => setIsStaffScannerOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 active:bg-teal-800 rounded-xl shadow-xs shadow-teal-500/20 transition-all active:scale-[0.98] cursor-pointer focus:ring-2 focus:ring-teal-500/30 focus:outline-none"
+                >
+                  <QrCode className="w-4 h-4" />
+                  <span>สแกน QR ตรวจเช็ก</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 rounded-xl shadow-xs shadow-blue-500/20 transition-all active:scale-[0.98] cursor-pointer focus:ring-2 focus:ring-blue-500/30 focus:outline-none"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>บันทึกหรือเปลี่ยนแปลงครุภัณฑ์</span>
+                </button>
+              )}
+            </div>
           </div>
         </header>
 
@@ -470,15 +588,17 @@ export default function DashboardView() {
           onDelete={(record) => setDeletingRecord(record)}
           onAddNew={() => setIsAddModalOpen(true)}
           onViewHistory={(record) => handleOpenHistory(record)}
+          userRole={currentUser?.role || 'admin'}
         />
       </main>
 
-      {/* Add / Change Record Modal */}
+      {/* Add / Change Record Modal (Admin Only) */}
       <RecordModal
-        isOpen={isAddModalOpen}
+        isOpen={isAddModalOpen && currentUser?.role !== 'staff'}
         records={records}
         dropdownOptions={dropdownOptions}
         fieldSettings={fieldSettings}
+        currentUser={currentUser}
         isSubmitting={isSubmitting}
         onSave={handleSaveRecord}
         onSubmit={handleSaveRecord}
@@ -486,18 +606,38 @@ export default function DashboardView() {
         onViewHistory={(code) => handleOpenHistory(code)}
       />
 
-      {/* Edit Record Modal */}
+      {/* Edit / Staff Inspect Record Modal */}
       <RecordModal
         isOpen={Boolean(editingRecord)}
         initialData={editingRecord}
         records={records}
         dropdownOptions={dropdownOptions}
         fieldSettings={fieldSettings}
+        currentUser={currentUser}
+        isInspectionMode={currentUser?.role === 'staff'}
         isSubmitting={isSubmitting}
         onSave={handleSaveRecord}
         onSubmit={handleSaveRecord}
         onClose={() => setEditingRecord(null)}
         onViewHistory={(code) => handleOpenHistory(code)}
+      />
+
+      {/* Staff QR Scanner Direct-to-Inspect Modal */}
+      <QrScannerModal
+        isOpen={isStaffScannerOpen}
+        onClose={() => setIsStaffScannerOpen(false)}
+        onScan={(cleanCode) => {
+          const match = findAssetByCode(cleanCode, records);
+          if (match) {
+            setEditingRecord(match);
+          } else {
+            showToast(
+              'error',
+              `ไม่พบรหัสครุภัณฑ์ "${cleanCode}" ในระบบ (เฉพาะผู้ดูแลระบบ Admin เท่านั้นที่เพิ่มรายการใหม่ได้)`,
+              'ไม่พบครุภัณฑ์'
+            );
+          }
+        }}
       />
 
       {/* Delete Confirmation Dialog */}
@@ -515,6 +655,7 @@ export default function DashboardView() {
         targetAsset={historyTargetAsset}
         logs={historyLogs}
         isLoading={isLoadingLogs}
+        userRole={currentUser?.role || 'admin'}
         onClose={() => {
           setIsHistoryModalOpen(false);
           setHistoryTargetAsset(null);

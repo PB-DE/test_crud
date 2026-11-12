@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { uploadImageToDrive } from '@/lib/sheets';
+import { requireAuth } from '@/lib/api-auth';
 
 const ALLOWED_MIME_TYPES = [
   'image/jpeg',
@@ -11,6 +12,9 @@ const ALLOWED_MIME_TYPES = [
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 export async function POST(request: Request) {
+  const auth = await requireAuth(request);
+  if (!auth.ok) return auth.response;
+
   try {
     const formData = await request.formData();
     const file = formData.get('file');

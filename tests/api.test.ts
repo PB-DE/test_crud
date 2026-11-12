@@ -11,11 +11,18 @@ import { POST as postUpload } from '../src/app/api/upload/route';
 import { sheetsService } from '../src/lib/sheets';
 import { DEFAULT_FIELD_SETTINGS } from '../src/lib/types';
 import * as envModule from '../src/lib/env';
+import * as sessionModule from '../src/lib/session';
 
 describe('API Route Handlers', () => {
   beforeEach(() => {
     sheetsService.resetDemoStore();
     vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(sessionModule, 'getSessionFromRequest').mockResolvedValue({
+      id: 'user-admin-default',
+      username: 'admin',
+      displayName: 'ผู้ดูแลระบบ (Admin)',
+      role: 'admin',
+    });
   });
 
   afterEach(() => {
@@ -144,7 +151,7 @@ describe('API Route Handlers', () => {
       expect(json.error).toMatch(/responsible person/i);
     });
 
-    it('rejects POST with missing recordedBy with status 400', async () => {
+    it('automatically populates recordedBy from authenticated session on POST even if body recordedBy is empty', async () => {
       const req = new Request('http://localhost:3000/api/records', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -158,11 +165,11 @@ describe('API Route Handlers', () => {
       });
 
       const res = await postRecord(req);
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(201);
 
       const json = await res.json();
-      expect(json.success).toBe(false);
-      expect(json.error).toMatch(/recorded by/i);
+      expect(json.success).toBe(true);
+      expect(json.data.recordedBy).toBe('ผู้ดูแลระบบ (Admin)');
     });
 
     it('rejects POST with invalid status with status 400', async () => {
@@ -228,7 +235,7 @@ describe('API Route Handlers', () => {
       expect(json.data.location).toBe('ห้องประชุม 1 ชั้น 3');
       expect(json.data.status).toBe('พร้อมใช้งาน');
       expect(json.data.responsiblePerson).toBe('นายประสิทธิ์ สุขใจ');
-      expect(json.data.recordedBy).toBe('นางสาววิไลลักษณ์ มั่นคง');
+      expect(json.data.recordedBy).toBe('ผู้ดูแลระบบ (Admin)');
       expect(json.data.notes).toBe('ติดตั้งพร้อมรีโมตและสาย HDMI');
     });
 
@@ -490,7 +497,7 @@ describe('API Route Handlers', () => {
       expect(json.error).toMatch(/responsible person/i);
     });
 
-    it('rejects PUT with empty recordedBy with status 400', async () => {
+    it('automatically enforces recordedBy from authenticated session on PUT', async () => {
       const req = new Request('http://localhost:3000/api/records/rec-demo-001', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -502,11 +509,11 @@ describe('API Route Handlers', () => {
       const res = await putRecord(req, {
         params: Promise.resolve({ id: 'rec-demo-001' }),
       });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
 
       const json = await res.json();
-      expect(json.success).toBe(false);
-      expect(json.error).toMatch(/recorded by/i);
+      expect(json.success).toBe(true);
+      expect(json.data.recordedBy).toBe('ผู้ดูแลระบบ (Admin)');
     });
 
     it('rejects malformed JSON body on PUT with status 400', async () => {

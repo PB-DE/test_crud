@@ -2,11 +2,23 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { GET, POST, PUT, DELETE } from '@/app/api/options/route';
 import { sheetsService } from '@/lib/sheets';
 import { DEFAULT_FIELD_SETTINGS } from '@/lib/types';
+import { createSessionToken, SESSION_COOKIE_NAME } from '@/lib/session';
 
-function createRequest(url: string, method: string, body?: any) {
+async function createRequest(url: string, method: string, body?: any) {
+  const token = await createSessionToken({
+    id: 'user-admin-default',
+    username: 'admin',
+    displayName: 'ผู้ดูแลระบบ (Admin)',
+    role: 'admin',
+  });
+  const headers: Record<string, string> = {
+    cookie: `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`,
+  };
+  if (body) headers['Content-Type'] = 'application/json';
+
   return new Request(url, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
 }
@@ -17,7 +29,7 @@ describe('/api/options API Route', () => {
   });
 
   it('GET returns default options and fieldSettings', async () => {
-    const res = await GET();
+    const res = await GET(await createRequest('http://localhost/api/options', 'GET'));
     const json = await res.json();
 
     expect(res.status).toBe(200);
@@ -29,7 +41,7 @@ describe('/api/options API Route', () => {
 
   it('POST creates a new mainCategory option and linked subCategory option', async () => {
     const mainRes = await POST(
-      createRequest('http://localhost/api/options', 'POST', {
+      await createRequest('http://localhost/api/options', 'POST', {
         fieldKey: 'mainCategory',
         value: 'ครุภัณฑ์วิทยาศาสตร์',
       })
@@ -41,7 +53,7 @@ describe('/api/options API Route', () => {
     expect(mainJson.data.value).toBe('ครุภัณฑ์วิทยาศาสตร์');
 
     const subRes = await POST(
-      createRequest('http://localhost/api/options', 'POST', {
+      await createRequest('http://localhost/api/options', 'POST', {
         fieldKey: 'subCategory',
         value: 'กล้องจุลทรรศน์',
         parentValue: 'ครุภัณฑ์วิทยาศาสตร์',
@@ -54,7 +66,7 @@ describe('/api/options API Route', () => {
 
   it('POST rejects subCategory without parentValue', async () => {
     const res = await POST(
-      createRequest('http://localhost/api/options', 'POST', {
+      await createRequest('http://localhost/api/options', 'POST', {
         fieldKey: 'subCategory',
         value: 'รายการไร้สังกัด',
       })
@@ -68,7 +80,7 @@ describe('/api/options API Route', () => {
     expect(targetMain).toBeDefined();
 
     const res = await PUT(
-      createRequest('http://localhost/api/options', 'PUT', {
+      await createRequest('http://localhost/api/options', 'PUT', {
         id: targetMain!.id,
         value: 'ครุภัณฑ์สำนักงานทั่วไป',
       })
@@ -92,7 +104,7 @@ describe('/api/options API Route', () => {
     );
 
     const res = await PUT(
-      createRequest('http://localhost/api/options', 'PUT', {
+      await createRequest('http://localhost/api/options', 'PUT', {
         fieldSettings: customSettings,
       })
     );
@@ -112,7 +124,7 @@ describe('/api/options API Route', () => {
     });
 
     const res = await DELETE(
-      createRequest(`http://localhost/api/options?id=${created.id}`, 'DELETE')
+      await createRequest(`http://localhost/api/options?id=${created.id}`, 'DELETE')
     );
     const json = await res.json();
     expect(res.status).toBe(200);

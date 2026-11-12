@@ -150,11 +150,16 @@ export function computeTransactionDiffs(transactions: AssetTransaction[]): Asset
         if (budgetSourceChanged) changes.push('แก้ไขงบที่ซื้อ');
 
         const isDecommission = tx.action === 'จำหน่าย/ตัดบัญชี';
+        const isInspection = tx.action === 'ตรวจเช็กครุภัณฑ์';
         const summary = isDecommission
           ? 'ลบรายการครุภัณฑ์ออกจากระบบ'
-          : changes.length > 0
-            ? changes.join(', ')
-            : 'แก้ไขข้อมูล';
+          : isInspection
+            ? changes.length > 0
+              ? `ตรวจเช็กครุภัณฑ์ (${changes.join(', ')})`
+              : 'ตรวจเช็กครุภัณฑ์ (ไม่พบการเปลี่ยนแปลง)'
+            : changes.length > 0
+              ? changes.join(', ')
+              : 'แก้ไขข้อมูล';
 
         allLogs.push({
           id: tx.id,
