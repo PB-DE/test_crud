@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import {
   Boxes,
   Plus,
@@ -9,8 +10,15 @@ import {
   History,
   ExternalLink,
   FileSpreadsheet,
+  Settings2,
 } from 'lucide-react';
-import { AssetRecord, AssetLogRecord } from '@/lib/types';
+import {
+  AssetRecord,
+  AssetLogRecord,
+  DropdownOption,
+  FieldSetting,
+  DEFAULT_FIELD_SETTINGS,
+} from '@/lib/types';
 import {
   filterRecords,
   sortRecords,
@@ -62,6 +70,10 @@ export default function DashboardView() {
 
   // Status report modal state
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+
+  // Dropdown options & field configuration state
+  const [dropdownOptions, setDropdownOptions] = useState<DropdownOption[]>([]);
+  const [fieldSettings, setFieldSettings] = useState<FieldSetting[]>(DEFAULT_FIELD_SETTINGS);
 
   // Toast notification state
   const [toast, setToast] = useState<Omit<ToastProps, 'onDismiss'> | null>(null);
@@ -124,11 +136,28 @@ export default function DashboardView() {
     [showToast]
   );
 
+  // Fetch dropdown options and field settings
+  const fetchOptions = useCallback(async () => {
+    try {
+      const res = await fetch('/api/options');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          setDropdownOptions(json.data.options || []);
+          setFieldSettings(json.data.fieldSettings || DEFAULT_FIELD_SETTINGS);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch options:', err);
+    }
+  }, []);
+
   // Initial load
   useEffect(() => {
     fetchStatus();
     fetchRecords();
-  }, [fetchStatus, fetchRecords]);
+    fetchOptions();
+  }, [fetchStatus, fetchRecords, fetchOptions]);
 
   // Handle sort column click
   const handleSortChange = (field: SortField) => {
@@ -354,6 +383,16 @@ export default function DashboardView() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap sm:flex-nowrap">
+            <Link
+              href="/settings"
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
+              title="ตั้งค่าฟิลด์บังคับกรอกและตัวเลือก Dropdown"
+            >
+              <Settings2 className="w-4 h-4 text-slate-600" />
+              <span className="hidden sm:inline">ตั้งค่าตัวเลือก</span>
+              <span className="sm:hidden">ตั้งค่า</span>
+            </Link>
+
             <button
               type="button"
               onClick={() => setIsReportModalOpen(true)}
@@ -378,7 +417,10 @@ export default function DashboardView() {
 
             <button
               type="button"
-              onClick={() => fetchRecords(true)}
+              onClick={() => {
+                fetchRecords(true);
+                fetchOptions();
+              }}
               disabled={isRefreshing || isLoadingRecords}
               className="inline-flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-xl hover:bg-slate-50 hover:text-slate-900 hover:border-slate-400 shadow-2xs transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30"
             >
@@ -435,6 +477,8 @@ export default function DashboardView() {
       <RecordModal
         isOpen={isAddModalOpen}
         records={records}
+        dropdownOptions={dropdownOptions}
+        fieldSettings={fieldSettings}
         isSubmitting={isSubmitting}
         onSave={handleSaveRecord}
         onSubmit={handleSaveRecord}
@@ -447,6 +491,8 @@ export default function DashboardView() {
         isOpen={Boolean(editingRecord)}
         initialData={editingRecord}
         records={records}
+        dropdownOptions={dropdownOptions}
+        fieldSettings={fieldSettings}
         isSubmitting={isSubmitting}
         onSave={handleSaveRecord}
         onSubmit={handleSaveRecord}

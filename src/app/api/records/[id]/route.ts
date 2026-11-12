@@ -1,6 +1,24 @@
 import { NextResponse } from 'next/server';
-import { sheetsService } from '@/lib/sheets';
-import { isValidAssetStatus, UpdateAssetInput } from '@/lib/types';
+import { sheetsService, parseUnitPrice } from '@/lib/sheets';
+import {
+  isValidAssetStatus,
+  UpdateAssetInput,
+  ConfigurableFieldKey,
+  DEFAULT_FIELD_SETTINGS,
+  FieldSetting,
+} from '@/lib/types';
+
+async function loadSafeFieldSettings(): Promise<FieldSetting[]> {
+  try {
+    return await sheetsService.getFieldSettings();
+  } catch {
+    return DEFAULT_FIELD_SETTINGS;
+  }
+}
+
+function isRequired(settings: FieldSetting[], key: ConfigurableFieldKey): boolean {
+  return settings.find((s) => s.fieldKey === key)?.required ?? false;
+}
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -68,7 +86,13 @@ export async function PUT(
     recordedBy,
     notes,
     imageUrl,
+    mainCategory,
+    subCategory,
+    acquisitionDate,
+    unitPrice,
+    budgetSource,
   } = body || {};
+  const fieldSettings = await loadSafeFieldSettings();
   const updateData: UpdateAssetInput = {};
 
   if (assetCode !== undefined) {
@@ -82,23 +106,23 @@ export async function PUT(
   }
 
   if (name !== undefined) {
-    if (typeof name !== 'string' || name.trim().length === 0) {
+    if (isRequired(fieldSettings, 'name') && (typeof name !== 'string' || name.trim().length === 0)) {
       return NextResponse.json(
         { success: false, error: 'Name cannot be empty' },
         { status: 400 }
       );
     }
-    updateData.name = name.trim();
+    updateData.name = typeof name === 'string' ? name.trim() : '';
   }
 
   if (location !== undefined) {
-    if (typeof location !== 'string' || location.trim().length === 0) {
+    if (isRequired(fieldSettings, 'location') && (typeof location !== 'string' || location.trim().length === 0)) {
       return NextResponse.json(
         { success: false, error: 'Location cannot be empty' },
         { status: 400 }
       );
     }
-    updateData.location = location.trim();
+    updateData.location = typeof location === 'string' ? location.trim() : '';
   }
 
   if (status !== undefined) {
@@ -117,33 +141,105 @@ export async function PUT(
 
   if (responsiblePerson !== undefined) {
     if (
-      typeof responsiblePerson !== 'string' ||
-      responsiblePerson.trim().length === 0
+      isRequired(fieldSettings, 'responsiblePerson') &&
+      (typeof responsiblePerson !== 'string' || responsiblePerson.trim().length === 0)
     ) {
       return NextResponse.json(
         { success: false, error: 'Responsible person cannot be empty' },
         { status: 400 }
       );
     }
-    updateData.responsiblePerson = responsiblePerson.trim();
+    updateData.responsiblePerson = typeof responsiblePerson === 'string' ? responsiblePerson.trim() : '';
   }
 
   if (recordedBy !== undefined) {
-    if (typeof recordedBy !== 'string' || recordedBy.trim().length === 0) {
+    if (isRequired(fieldSettings, 'recordedBy') && (typeof recordedBy !== 'string' || recordedBy.trim().length === 0)) {
       return NextResponse.json(
         { success: false, error: 'Recorded by cannot be empty' },
         { status: 400 }
       );
     }
-    updateData.recordedBy = recordedBy.trim();
+    updateData.recordedBy = typeof recordedBy === 'string' ? recordedBy.trim() : '';
   }
 
   if (notes !== undefined) {
-    updateData.notes = typeof notes === 'string' ? notes.trim() : '';
+    const trimmedNotes = typeof notes === 'string' ? notes.trim() : '';
+    if (isRequired(fieldSettings, 'notes') && trimmedNotes.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'กรุณาระบุหมายเหตุ' },
+        { status: 400 }
+      );
+    }
+    updateData.notes = trimmedNotes;
   }
 
   if (imageUrl !== undefined) {
     updateData.imageUrl = typeof imageUrl === 'string' ? imageUrl.trim() : undefined;
+  }
+
+  if (mainCategory !== undefined) {
+    const trimmed = typeof mainCategory === 'string' ? mainCategory.trim() : '';
+    if (isRequired(fieldSettings, 'mainCategory') && trimmed.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'กรุณาระบุประเภทหลัก' },
+        { status: 400 }
+      );
+    }
+    updateData.mainCategory = trimmed;
+  }
+
+  if (subCategory !== undefined) {
+    const trimmed = typeof subCategory === 'string' ? subCategory.trim() : '';
+    if (isRequired(fieldSettings, 'subCategory') && trimmed.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'กรุณาระบุประเภทย่อย' },
+        { status: 400 }
+      );
+    }
+    updateData.subCategory = trimmed;
+  }
+
+  if (acquisitionDate !== undefined) {
+    const trimmed = typeof acquisitionDate === 'string' ? acquisitionDate.trim() : '';
+    if (isRequired(fieldSettings, 'acquisitionDate') && trimmed.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'กรุณาระบุวันที่ได้มา' },
+        { status: 400 }
+      );
+    }
+    updateData.acquisitionDate = trimmed;
+  }
+
+  if (unitPrice !== undefined) {
+    if (unitPrice === null || String(unitPrice).trim() === '') {
+      if (isRequired(fieldSettings, 'unitPrice')) {
+        return NextResponse.json(
+          { success: false, error: 'กรุณาระบุราคา/หน่วย' },
+          { status: 400 }
+        );
+      }
+      updateData.unitPrice = null as any;
+    } else {
+      const parsed = parseUnitPrice(unitPrice);
+      if (parsed === undefined) {
+        return NextResponse.json(
+          { success: false, error: 'ราคา/หน่วย ต้องเป็นตัวเลขที่ไม่ติดลบ' },
+          { status: 400 }
+        );
+      }
+      updateData.unitPrice = parsed;
+    }
+  }
+
+  if (budgetSource !== undefined) {
+    const trimmed = typeof budgetSource === 'string' ? budgetSource.trim() : '';
+    if (isRequired(fieldSettings, 'budgetSource') && trimmed.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'กรุณาระบุงบที่ซื้อ' },
+        { status: 400 }
+      );
+    }
+    updateData.budgetSource = trimmed;
   }
 
   try {

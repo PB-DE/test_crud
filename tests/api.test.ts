@@ -9,6 +9,7 @@ import { GET as getLogs } from '../src/app/api/logs/route';
 import { GET as getStatus } from '../src/app/api/status/route';
 import { POST as postUpload } from '../src/app/api/upload/route';
 import { sheetsService } from '../src/lib/sheets';
+import { DEFAULT_FIELD_SETTINGS } from '../src/lib/types';
 import * as envModule from '../src/lib/env';
 
 describe('API Route Handlers', () => {
@@ -930,6 +931,109 @@ describe('API Route Handlers', () => {
       expect(json.success).toBe(true);
       expect(json.url).toBeDefined();
       expect(json.fileId).toBeDefined();
+    });
+  });
+
+  describe('Custom Fields & Dynamic Validation in /api/records', () => {
+    it('creates and updates an asset with all 5 optional fields', async () => {
+      const postReq = new Request('http://localhost:3000/api/records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: 'EQ-CUSTOM-01',
+          name: 'Server Rack 42U',
+          location: 'ห้อง Server',
+          status: 'กำลังใช้งาน',
+          responsiblePerson: 'นายวิศวะ',
+          recordedBy: 'Admin',
+          mainCategory: 'ครุภัณฑ์คอมพิวเตอร์',
+          subCategory: 'อุปกรณ์เครือข่าย',
+          acquisitionDate: '2026-10-01',
+          unitPrice: 45000.5,
+          budgetSource: 'งบลงทุน 2569',
+        }),
+      });
+
+      const postRes = await postRecord(postReq);
+      expect(postRes.status).toBe(201);
+      const postJson = await postRes.json();
+      expect(postJson.data.mainCategory).toBe('ครุภัณฑ์คอมพิวเตอร์');
+      expect(postJson.data.subCategory).toBe('อุปกรณ์เครือข่าย');
+      expect(postJson.data.acquisitionDate).toBe('2026-10-01');
+      expect(postJson.data.unitPrice).toBe(45000.5);
+      expect(postJson.data.budgetSource).toBe('งบลงทุน 2569');
+
+      const putReq = new Request(`http://localhost:3000/api/records/${postJson.data.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          unitPrice: 48000,
+          budgetSource: 'งบกลาง',
+        }),
+      });
+      const putRes = await putRecord(putReq, {
+        params: Promise.resolve({ id: postJson.data.id }),
+      });
+      expect(putRes.status).toBe(200);
+      const putJson = await putRes.json();
+      expect(putJson.data.unitPrice).toBe(48000);
+      expect(putJson.data.budgetSource).toBe('งบกลาง');
+      expect(putJson.data.mainCategory).toBe('ครุภัณฑ์คอมพิวเตอร์'); // preserved
+    });
+
+    it('rejects negative unitPrice with 400', async () => {
+      const req = new Request('http://localhost:3000/api/records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: 'EQ-BAD-PRICE',
+          name: 'Test Item',
+          location: 'Room 1',
+          responsiblePerson: 'Somchai',
+          recordedBy: 'Admin',
+          unitPrice: -100,
+        }),
+      });
+
+      const res = await postRecord(req);
+      expect(res.status).toBe(400);
+    });
+
+    it('enforces dynamic fieldSettings required toggle on POST /api/records', async () => {
+      await sheetsService.saveFieldSettings(
+        DEFAULT_FIELD_SETTINGS.map((s) =>
+          s.fieldKey === 'mainCategory' ? { ...s, required: true } : s
+        )
+      );
+
+      const failReq = new Request('http://localhost:3000/api/records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: 'EQ-DYN-REQ',
+          name: 'Printer',
+          location: 'Room 1',
+          responsiblePerson: 'Somchai',
+          recordedBy: 'Admin',
+        }),
+      });
+      const failRes = await postRecord(failReq);
+      expect(failRes.status).toBe(400);
+
+      const okReq = new Request('http://localhost/api/records', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assetCode: 'EQ-DYN-REQ',
+          name: 'Printer',
+          location: 'Room 1',
+          responsiblePerson: 'Somchai',
+          recordedBy: 'Admin',
+          mainCategory: 'ครุภัณฑ์คอมพิวเตอร์',
+        }),
+      });
+      const okRes = await postRecord(okReq);
+      expect(okRes.status).toBe(201);
     });
   });
 });

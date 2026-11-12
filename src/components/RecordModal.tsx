@@ -14,7 +14,16 @@ import {
   Trash2,
   Check,
 } from 'lucide-react';
-import { AssetRecord, AssetStatus, ASSET_STATUSES } from '@/lib/types';
+import {
+  AssetRecord,
+  AssetStatus,
+  ASSET_STATUSES,
+  DropdownOption,
+  DropdownFieldKey,
+  FieldSetting,
+  ConfigurableFieldKey,
+  DEFAULT_FIELD_SETTINGS,
+} from '@/lib/types';
 import { findAssetByCode } from '@/lib/ui-helpers';
 import { compressImage } from '@/lib/image-utils';
 import { QrScannerModal } from './QrScannerModal';
@@ -29,6 +38,11 @@ export interface RecordModalFormData {
   recordedBy: string;
   notes: string;
   imageUrl?: string;
+  mainCategory?: string;
+  subCategory?: string;
+  acquisitionDate?: string;
+  unitPrice?: number | string;
+  budgetSource?: string;
 }
 
 export type AssetInput = RecordModalFormData;
@@ -38,6 +52,8 @@ export interface RecordModalProps {
   initialData?: AssetRecord | null;
   record?: AssetRecord | null;
   records?: AssetRecord[];
+  dropdownOptions?: DropdownOption[];
+  fieldSettings?: FieldSetting[];
   isSubmitting?: boolean;
   onSubmit?: (data: RecordModalFormData, id?: string) => Promise<void> | void;
   onSave?: (data: RecordModalFormData, id?: string) => Promise<void> | void;
@@ -50,6 +66,8 @@ export function RecordModal({
   initialData,
   record,
   records = [],
+  dropdownOptions = [],
+  fieldSettings = DEFAULT_FIELD_SETTINGS,
   isSubmitting = false,
   onSubmit,
   onSave,
@@ -68,6 +86,11 @@ export function RecordModal({
     recordedBy: '',
     notes: '',
     imageUrl: '',
+    mainCategory: '',
+    subCategory: '',
+    acquisitionDate: '',
+    unitPrice: '',
+    budgetSource: '',
   });
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -82,6 +105,22 @@ export function RecordModal({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploadError, setUploadError] = useState<string | null>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
+
+  const getFieldRule = (key: ConfigurableFieldKey): FieldSetting => {
+    return (
+      fieldSettings.find((s) => s.fieldKey === key) ||
+      DEFAULT_FIELD_SETTINGS.find((s) => s.fieldKey === key)!
+    );
+  };
+
+  const getOptionsForField = (key: DropdownFieldKey, parentValue?: string): DropdownOption[] => {
+    const base = dropdownOptions.filter((o) => o.fieldKey === key);
+    if (key === 'subCategory') {
+      if (!parentValue) return [];
+      return base.filter((o) => o.parentValue === parentValue);
+    }
+    return base;
+  };
 
   // Unique options for datalist memoized to avoid recomputing on every render (must be before early return)
   const datalistOptions = useMemo(
@@ -117,6 +156,12 @@ export function RecordModal({
           recordedBy: activeRecord.recordedBy || '',
           notes: activeRecord.notes || '',
           imageUrl: activeRecord.imageUrl || '',
+          mainCategory: activeRecord.mainCategory || '',
+          subCategory: activeRecord.subCategory || '',
+          acquisitionDate: activeRecord.acquisitionDate || '',
+          unitPrice:
+            activeRecord.unitPrice !== undefined ? String(activeRecord.unitPrice) : '',
+          budgetSource: activeRecord.budgetSource || '',
         });
         setPreviewUrl(activeRecord.imageUrl || null);
         setSelectedFile(null);
@@ -130,6 +175,11 @@ export function RecordModal({
           recordedBy: '',
           notes: '',
           imageUrl: '',
+          mainCategory: '',
+          subCategory: '',
+          acquisitionDate: '',
+          unitPrice: '',
+          budgetSource: '',
         });
         setPreviewUrl(null);
         setSelectedFile(null);
@@ -177,6 +227,16 @@ export function RecordModal({
             !isResponsibleModified && existing.responsiblePerson
               ? existing.responsiblePerson
               : prev.responsiblePerson,
+          mainCategory: prev.mainCategory || existing.mainCategory || '',
+          subCategory: prev.subCategory || existing.subCategory || '',
+          acquisitionDate: prev.acquisitionDate || existing.acquisitionDate || '',
+          unitPrice:
+            prev.unitPrice !== ''
+              ? prev.unitPrice
+              : existing.unitPrice !== undefined
+                ? String(existing.unitPrice)
+                : '',
+          budgetSource: prev.budgetSource || existing.budgetSource || '',
         };
       });
     } else if (!selectedFile && !activeRecord) {
@@ -209,6 +269,11 @@ export function RecordModal({
         if (!isResponsibleModified && existing.responsiblePerson) {
           updated.responsiblePerson = existing.responsiblePerson;
         }
+        if (existing.mainCategory) updated.mainCategory = existing.mainCategory;
+        if (existing.subCategory) updated.subCategory = existing.subCategory;
+        if (existing.acquisitionDate) updated.acquisitionDate = existing.acquisitionDate;
+        if (existing.unitPrice !== undefined) updated.unitPrice = String(existing.unitPrice);
+        if (existing.budgetSource) updated.budgetSource = existing.budgetSource;
       }
       return updated;
     });
@@ -224,20 +289,50 @@ export function RecordModal({
       newErrors.assetCode = 'กรุณากรอกรหัสครุภัณฑ์';
     }
 
-    if (!formData.name.trim()) {
+    if (getFieldRule('name').required && !formData.name.trim()) {
       newErrors.name = 'กรุณากรอกชื่อรายการครุภัณฑ์';
     }
 
-    if (!formData.location.trim()) {
-      newErrors.location = 'กรุณากรอกตำแหน่งที่ตั้งล่าสุด';
+    if (getFieldRule('mainCategory').required && !(formData.mainCategory || '').trim()) {
+      newErrors.mainCategory = 'กรุณาระบุประเภทหลัก';
     }
 
-    if (!formData.responsiblePerson.trim()) {
-      newErrors.responsiblePerson = 'กรุณากรอกชื่อผู้รับผิดชอบ';
+    if (getFieldRule('subCategory').required && !(formData.subCategory || '').trim()) {
+      newErrors.subCategory = 'กรุณาระบุประเภทย่อย';
     }
 
-    if (!formData.recordedBy.trim()) {
-      newErrors.recordedBy = 'กรุณากรอกชื่อผู้บันทึก';
+    if (getFieldRule('location').required && !formData.location.trim()) {
+      newErrors.location = 'กรุณาระบุตำแหน่งที่ตั้งล่าสุด';
+    }
+
+    if (getFieldRule('acquisitionDate').required && !(formData.acquisitionDate || '').trim()) {
+      newErrors.acquisitionDate = 'กรุณาระบุวันที่ได้มา';
+    }
+
+    const rawPrice = String(formData.unitPrice ?? '').trim();
+    if (rawPrice !== '') {
+      const parsed = Number(rawPrice);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        newErrors.unitPrice = 'ราคา/หน่วย ต้องเป็นตัวเลขที่ไม่ติดลบ';
+      }
+    } else if (getFieldRule('unitPrice').required) {
+      newErrors.unitPrice = 'กรุณาระบุราคา/หน่วย';
+    }
+
+    if (getFieldRule('budgetSource').required && !(formData.budgetSource || '').trim()) {
+      newErrors.budgetSource = 'กรุณาระบุงบที่ซื้อ';
+    }
+
+    if (getFieldRule('responsiblePerson').required && !formData.responsiblePerson.trim()) {
+      newErrors.responsiblePerson = 'กรุณาระบุชื่อผู้รับผิดชอบ';
+    }
+
+    if (getFieldRule('recordedBy').required && !formData.recordedBy.trim()) {
+      newErrors.recordedBy = 'กรุณาระบุชื่อผู้บันทึก';
+    }
+
+    if (getFieldRule('notes').required && !formData.notes.trim()) {
+      newErrors.notes = 'กรุณากรอกหมายเหตุ';
     }
 
     setErrors(newErrors);
@@ -310,8 +405,10 @@ export function RecordModal({
       sanitizedImageUrl = '';
     }
 
+    const rawUnitPrice = String(formData.unitPrice ?? '').trim();
     const submissionData: RecordModalFormData = {
       ...formData,
+      unitPrice: rawUnitPrice === '' ? '' : Number(rawUnitPrice),
       imageUrl: sanitizedImageUrl || '',
     };
 
@@ -320,6 +417,95 @@ export function RecordModal({
     } else if (onSubmit) {
       await onSubmit(submissionData, targetId);
     }
+  };
+
+  const renderConfigurableInput = (
+    fieldKey: DropdownFieldKey,
+    id: string,
+    label: string,
+    value: string,
+    onChange: (val: string) => void,
+    placeholder: string,
+    options?: { disabled?: boolean; parentValue?: string; emptySelectHint?: string }
+  ) => {
+    const rule = getFieldRule(fieldKey);
+    const errorMsg = errors[fieldKey];
+    const isSelectMode = rule.supportsDropdown && rule.useDropdown;
+    const isFieldDisabled = Boolean(options?.disabled);
+
+    if (isSelectMode) {
+      const items = getOptionsForField(fieldKey, options?.parentValue);
+      const hasLegacyValue =
+        Boolean(value) && !items.some((opt) => opt.value === value);
+
+      return (
+        <div>
+          <label
+            htmlFor={id}
+            className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
+          >
+            {label} {rule.required && <span className="text-rose-500">*</span>}
+          </label>
+          <select
+            id={id}
+            disabled={isFieldDisabled}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
+              isFieldDisabled
+                ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+                : errorMsg
+                  ? 'border-rose-400 focus:ring-rose-500/20 bg-white'
+                  : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500 bg-white'
+            } focus:outline-none focus:ring-2 transition-all`}
+          >
+            <option value="">
+              {options?.emptySelectHint || `-- เลือก${label} --`}
+            </option>
+            {hasLegacyValue && (
+              <option value={value}>{value} (ค่าเดิมในระบบ)</option>
+            )}
+            {items.map((opt) => (
+              <option key={opt.id} value={opt.value}>
+                {opt.value}
+              </option>
+            ))}
+          </select>
+          {errorMsg && (
+            <p className="mt-1 text-xs text-rose-600 font-medium">{errorMsg}</p>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div>
+        <label
+          htmlFor={id}
+          className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
+        >
+          {label} {rule.required && <span className="text-rose-500">*</span>}
+        </label>
+        <input
+          id={id}
+          type="text"
+          disabled={isFieldDisabled}
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
+            isFieldDisabled
+              ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
+              : errorMsg
+                ? 'border-rose-400 focus:ring-rose-500/20'
+                : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
+          } focus:outline-none focus:ring-2 transition-all`}
+        />
+        {errorMsg && (
+          <p className="mt-1 text-xs text-rose-600 font-medium">{errorMsg}</p>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -535,120 +721,187 @@ export function RecordModal({
           ) : null}
 
           {/* Asset Name */}
-          <div>
-            <label
-              htmlFor="field-name"
-              className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
-            >
-              ชื่อรายการครุภัณฑ์ <span className="text-rose-500">*</span>
-            </label>
-            <input
-              id="field-name"
-              type="text"
-              disabled={Boolean(existingAsset)}
-              placeholder="เช่น คอมพิวเตอร์ All-in-One Dell OptiPlex"
-              value={formData.name}
-              onChange={(e) => {
-                setFormData({ ...formData, name: e.target.value });
-                if (errors.name) setErrors({ ...errors, name: '' });
-              }}
-              className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
-                existingAsset
-                  ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
-                  : errors.name
-                  ? 'border-rose-400 focus:ring-rose-500/20'
-                  : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
-              } focus:outline-none focus:ring-2 transition-all`}
-            />
-            {errors.name && (
-              <p className="mt-1 text-xs text-rose-600 font-medium">{errors.name}</p>
+          {renderConfigurableInput(
+            'name',
+            'field-name',
+            'ชื่อรายการครุภัณฑ์',
+            formData.name,
+            (val) => {
+              setFormData({ ...formData, name: val });
+              if (errors.name) setErrors({ ...errors, name: '' });
+            },
+            'เช่น คอมพิวเตอร์ All-in-One Dell OptiPlex',
+            { disabled: Boolean(existingAsset) }
+          )}
+
+          {/* Main Category & Sub Category (Cascading) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {renderConfigurableInput(
+              'mainCategory',
+              'field-mainCategory',
+              'ประเภทหลัก',
+              formData.mainCategory || '',
+              (val) => {
+                const subRule = getFieldRule('subCategory');
+                const validSubsForNewMain = dropdownOptions.filter(
+                  (o) => o.fieldKey === 'subCategory' && o.parentValue === val
+                );
+                const keepCurrentSub =
+                  !subRule.useDropdown ||
+                  validSubsForNewMain.some((o) => o.value === formData.subCategory);
+
+                setFormData({
+                  ...formData,
+                  mainCategory: val,
+                  subCategory: keepCurrentSub ? formData.subCategory : '',
+                });
+                if (errors.mainCategory) setErrors({ ...errors, mainCategory: '' });
+              },
+              'เช่น ครุภัณฑ์คอมพิวเตอร์'
+            )}
+
+            {renderConfigurableInput(
+              'subCategory',
+              'field-subCategory',
+              'ประเภทย่อย',
+              formData.subCategory || '',
+              (val) => {
+                setFormData({ ...formData, subCategory: val });
+                if (errors.subCategory) setErrors({ ...errors, subCategory: '' });
+              },
+              'เช่น คอมพิวเตอร์ตั้งโต๊ะ',
+              {
+                disabled:
+                  getFieldRule('subCategory').useDropdown &&
+                  !formData.mainCategory,
+                parentValue: formData.mainCategory,
+                emptySelectHint:
+                  getFieldRule('subCategory').useDropdown && !formData.mainCategory
+                    ? '-- กรุณาเลือกประเภทหลักก่อน --'
+                    : '-- เลือกประเภทย่อย --',
+              }
             )}
           </div>
 
           {/* Location */}
-          <div>
-            <label
-              htmlFor="field-location"
-              className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
-            >
-              ตำแหน่งที่ตั้งล่าสุด <span className="text-rose-500">*</span>
-            </label>
-            <input
-              id="field-location"
-              type="text"
-              placeholder="เช่น อาคาร 1 ชั้น 3 ห้อง 301"
-              value={formData.location}
-              onChange={(e) => {
-                setFormData({ ...formData, location: e.target.value });
-                if (errors.location) setErrors({ ...errors, location: '' });
-              }}
-              className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
-                errors.location
-                  ? 'border-rose-400 focus:ring-rose-500/20'
-                  : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
-              } focus:outline-none focus:ring-2 transition-all`}
-            />
-            {errors.location && (
-              <p className="mt-1 text-xs text-rose-600 font-medium">{errors.location}</p>
+          {renderConfigurableInput(
+            'location',
+            'field-location',
+            'ตำแหน่งที่ตั้งล่าสุด',
+            formData.location,
+            (val) => {
+              setFormData({ ...formData, location: val });
+              if (errors.location) setErrors({ ...errors, location: '' });
+            },
+            'เช่น อาคาร 1 ชั้น 3 ห้อง 301'
+          )}
+
+          {/* Acquisition Date, Unit Price & Budget Source */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label
+                htmlFor="field-acquisitionDate"
+                className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
+              >
+                วันที่ได้มา{' '}
+                {getFieldRule('acquisitionDate').required && (
+                  <span className="text-rose-500">*</span>
+                )}
+              </label>
+              <input
+                id="field-acquisitionDate"
+                type="date"
+                value={formData.acquisitionDate || ''}
+                onChange={(e) => {
+                  setFormData({ ...formData, acquisitionDate: e.target.value });
+                  if (errors.acquisitionDate) setErrors({ ...errors, acquisitionDate: '' });
+                }}
+                className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
+                  errors.acquisitionDate
+                    ? 'border-rose-400 focus:ring-rose-500/20'
+                    : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
+                } focus:outline-none focus:ring-2 transition-all bg-white`}
+              />
+              {errors.acquisitionDate && (
+                <p className="mt-1 text-xs text-rose-600 font-medium">
+                  {errors.acquisitionDate}
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="field-unitPrice"
+                className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
+              >
+                ราคา/หน่วย (บาท){' '}
+                {getFieldRule('unitPrice').required && (
+                  <span className="text-rose-500">*</span>
+                )}
+              </label>
+              <input
+                id="field-unitPrice"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="เช่น 15500"
+                value={formData.unitPrice ?? ''}
+                onChange={(e) => {
+                  setFormData({ ...formData, unitPrice: e.target.value });
+                  if (errors.unitPrice) setErrors({ ...errors, unitPrice: '' });
+                }}
+                className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
+                  errors.unitPrice
+                    ? 'border-rose-400 focus:ring-rose-500/20'
+                    : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
+                } focus:outline-none focus:ring-2 transition-all`}
+              />
+              {errors.unitPrice && (
+                <p className="mt-1 text-xs text-rose-600 font-medium">
+                  {errors.unitPrice}
+                </p>
+              )}
+            </div>
+
+            {renderConfigurableInput(
+              'budgetSource',
+              'field-budgetSource',
+              'งบที่ซื้อ',
+              formData.budgetSource || '',
+              (val) => {
+                setFormData({ ...formData, budgetSource: val });
+                if (errors.budgetSource) setErrors({ ...errors, budgetSource: '' });
+              },
+              'เช่น งบประมาณแผ่นดิน'
             )}
           </div>
 
           {/* Responsible Person & Recorded By Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="field-responsiblePerson"
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
-              >
-                ผู้รับผิดชอบ <span className="text-rose-500">*</span>
-              </label>
-              <input
-                id="field-responsiblePerson"
-                type="text"
-                placeholder="เช่น สมชาย ใจดี (ฝ่ายไอที)"
-                value={formData.responsiblePerson}
-                onChange={(e) => {
-                  setIsResponsibleModified(true);
-                  setFormData({ ...formData, responsiblePerson: e.target.value });
-                  if (errors.responsiblePerson) setErrors({ ...errors, responsiblePerson: '' });
-                }}
-                className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
-                  errors.responsiblePerson
-                    ? 'border-rose-400 focus:ring-rose-500/20'
-                    : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
-                } focus:outline-none focus:ring-2 transition-all`}
-              />
-              {errors.responsiblePerson && (
-                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.responsiblePerson}</p>
-              )}
-            </div>
+            {renderConfigurableInput(
+              'responsiblePerson',
+              'field-responsiblePerson',
+              'ผู้รับผิดชอบ',
+              formData.responsiblePerson,
+              (val) => {
+                setIsResponsibleModified(true);
+                setFormData({ ...formData, responsiblePerson: val });
+                if (errors.responsiblePerson) setErrors({ ...errors, responsiblePerson: '' });
+              },
+              'เช่น สมชาย ใจดี (ฝ่ายไอที)'
+            )}
 
-            <div>
-              <label
-                htmlFor="field-recordedBy"
-                className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
-              >
-                ผู้บันทึก <span className="text-rose-500">*</span>
-              </label>
-              <input
-                id="field-recordedBy"
-                type="text"
-                placeholder="เช่น เจ้าหน้าที่พัสดุ A"
-                value={formData.recordedBy}
-                onChange={(e) => {
-                  setFormData({ ...formData, recordedBy: e.target.value });
-                  if (errors.recordedBy) setErrors({ ...errors, recordedBy: '' });
-                }}
-                className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
-                  errors.recordedBy
-                    ? 'border-rose-400 focus:ring-rose-500/20'
-                    : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
-                } focus:outline-none focus:ring-2 transition-all`}
-              />
-              {errors.recordedBy && (
-                <p className="mt-1 text-xs text-rose-600 font-medium">{errors.recordedBy}</p>
-              )}
-            </div>
+            {renderConfigurableInput(
+              'recordedBy',
+              'field-recordedBy',
+              'ผู้บันทึก',
+              formData.recordedBy,
+              (val) => {
+                setFormData({ ...formData, recordedBy: val });
+                if (errors.recordedBy) setErrors({ ...errors, recordedBy: '' });
+              },
+              'เช่น เจ้าหน้าที่พัสดุ A'
+            )}
           </div>
 
           {/* Asset Photo Section */}
@@ -744,18 +997,29 @@ export function RecordModal({
               htmlFor="field-notes"
               className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1"
             >
-              หมายเหตุ
+              หมายเหตุ{' '}
+              {getFieldRule('notes').required && (
+                <span className="text-rose-500">*</span>
+              )}
             </label>
             <textarea
               id="field-notes"
               rows={3}
               placeholder="ระบุรายละเอียดเพิ่มเติม (ถ้ามี)..."
               value={formData.notes}
-              onChange={(e) =>
-                setFormData({ ...formData, notes: e.target.value })
-              }
-              className="w-full px-3.5 py-2 text-sm rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all resize-none"
+              onChange={(e) => {
+                setFormData({ ...formData, notes: e.target.value });
+                if (errors.notes) setErrors({ ...errors, notes: '' });
+              }}
+              className={`w-full px-3.5 py-2 text-sm rounded-xl border ${
+                errors.notes
+                  ? 'border-rose-400 focus:ring-rose-500/20'
+                  : 'border-slate-300 focus:ring-blue-500/20 focus:border-blue-500'
+              } focus:outline-none focus:ring-2 transition-all resize-none`}
             />
+            {errors.notes && (
+              <p className="mt-1 text-xs text-rose-600 font-medium">{errors.notes}</p>
+            )}
           </div>
 
           {/* Footer Actions */}

@@ -134,6 +134,21 @@ export function computeTransactionDiffs(transactions: AssetTransaction[]): Asset
         const imageChanged = Boolean(tx.imageUrl && tx.imageUrl !== prevTx.imageUrl);
         if (imageChanged) changes.push('อัปเดตรูปถ่าย');
 
+        const mainCategoryChanged = (tx.mainCategory || '') !== (prevTx.mainCategory || '');
+        if (mainCategoryChanged) changes.push('แก้ไขประเภทหลัก');
+
+        const subCategoryChanged = (tx.subCategory || '') !== (prevTx.subCategory || '');
+        if (subCategoryChanged) changes.push('แก้ไขประเภทย่อย');
+
+        const acquisitionDateChanged = (tx.acquisitionDate || '') !== (prevTx.acquisitionDate || '');
+        if (acquisitionDateChanged) changes.push('แก้ไขวันที่ได้มา');
+
+        const unitPriceChanged = (tx.unitPrice ?? null) !== (prevTx.unitPrice ?? null);
+        if (unitPriceChanged) changes.push('แก้ไขราคา/หน่วย');
+
+        const budgetSourceChanged = (tx.budgetSource || '') !== (prevTx.budgetSource || '');
+        if (budgetSourceChanged) changes.push('แก้ไขงบที่ซื้อ');
+
         const isDecommission = tx.action === 'จำหน่าย/ตัดบัญชี';
         const summary = isDecommission
           ? 'ลบรายการครุภัณฑ์ออกจากระบบ'
@@ -240,6 +255,41 @@ export function computeAssetDiff(
     newRecord.imageUrl !== (oldRecord.imageUrl || '');
   if (imageChanged) {
     changes.push('อัปเดตรูปถ่าย');
+  }
+
+  const mainCategoryChanged =
+    newRecord.mainCategory !== undefined &&
+    newRecord.mainCategory !== (oldRecord.mainCategory || '');
+  if (mainCategoryChanged) {
+    changes.push('แก้ไขประเภทหลัก');
+  }
+
+  const subCategoryChanged =
+    newRecord.subCategory !== undefined &&
+    newRecord.subCategory !== (oldRecord.subCategory || '');
+  if (subCategoryChanged) {
+    changes.push('แก้ไขประเภทย่อย');
+  }
+
+  const acquisitionDateChanged =
+    newRecord.acquisitionDate !== undefined &&
+    newRecord.acquisitionDate !== (oldRecord.acquisitionDate || '');
+  if (acquisitionDateChanged) {
+    changes.push('แก้ไขวันที่ได้มา');
+  }
+
+  const unitPriceChanged =
+    newRecord.unitPrice !== undefined &&
+    newRecord.unitPrice !== oldRecord.unitPrice;
+  if (unitPriceChanged) {
+    changes.push('แก้ไขราคา/หน่วย');
+  }
+
+  const budgetSourceChanged =
+    newRecord.budgetSource !== undefined &&
+    newRecord.budgetSource !== (oldRecord.budgetSource || '');
+  if (budgetSourceChanged) {
+    changes.push('แก้ไขงบที่ซื้อ');
   }
 
   if (changes.length === 0) {

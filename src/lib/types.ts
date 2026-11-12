@@ -21,6 +21,11 @@ export interface AssetTransaction {
   recordedBy: string;
   notes: string;
   imageUrl?: string;
+  mainCategory?: string;
+  subCategory?: string;
+  acquisitionDate?: string;
+  unitPrice?: number;
+  budgetSource?: string;
 }
 
 export interface AssetRecord {
@@ -33,6 +38,11 @@ export interface AssetRecord {
   recordedBy: string;
   notes: string;
   imageUrl?: string;
+  mainCategory?: string;
+  subCategory?: string;
+  acquisitionDate?: string;
+  unitPrice?: number;
+  budgetSource?: string;
   createdAt: string;
   updatedAt: string;
   transactionCount?: number;
@@ -63,6 +73,61 @@ export interface AssetLogRecord {
   notes: string;
   imageUrl?: string;
 }
+
+export type ConfigurableFieldKey =
+  | 'name'
+  | 'location'
+  | 'responsiblePerson'
+  | 'recordedBy'
+  | 'mainCategory'
+  | 'subCategory'
+  | 'acquisitionDate'
+  | 'unitPrice'
+  | 'budgetSource'
+  | 'notes';
+
+export type DropdownFieldKey =
+  | 'name'
+  | 'location'
+  | 'responsiblePerson'
+  | 'recordedBy'
+  | 'mainCategory'
+  | 'subCategory'
+  | 'budgetSource';
+
+export interface DropdownOption {
+  id: string;
+  fieldKey: DropdownFieldKey;
+  value: string;
+  parentValue?: string;
+  updatedAt?: string;
+}
+
+export interface FieldSetting {
+  fieldKey: ConfigurableFieldKey;
+  label: string;
+  required: boolean;
+  useDropdown: boolean;
+  supportsDropdown: boolean;
+}
+
+export interface SystemOptionsPayload {
+  options: DropdownOption[];
+  fieldSettings: FieldSetting[];
+}
+
+export const DEFAULT_FIELD_SETTINGS: FieldSetting[] = [
+  { fieldKey: 'name', label: 'ชื่อครุภัณฑ์', required: true, useDropdown: false, supportsDropdown: true },
+  { fieldKey: 'mainCategory', label: 'ประเภทหลัก', required: false, useDropdown: true, supportsDropdown: true },
+  { fieldKey: 'subCategory', label: 'ประเภทย่อย', required: false, useDropdown: true, supportsDropdown: true },
+  { fieldKey: 'location', label: 'ตำแหน่งที่ตั้ง', required: true, useDropdown: true, supportsDropdown: true },
+  { fieldKey: 'acquisitionDate', label: 'วันที่ได้มา', required: false, useDropdown: false, supportsDropdown: false },
+  { fieldKey: 'unitPrice', label: 'ราคา/หน่วย', required: false, useDropdown: false, supportsDropdown: false },
+  { fieldKey: 'budgetSource', label: 'งบที่ซื้อ', required: false, useDropdown: false, supportsDropdown: true },
+  { fieldKey: 'responsiblePerson', label: 'ผู้รับผิดชอบ', required: true, useDropdown: false, supportsDropdown: true },
+  { fieldKey: 'recordedBy', label: 'ผู้บันทึก', required: true, useDropdown: false, supportsDropdown: true },
+  { fieldKey: 'notes', label: 'หมายเหตุ', required: false, useDropdown: false, supportsDropdown: false },
+];
 
 // Backward-compatible aliases for downstream modules during transition:
 export type RecordItem = AssetRecord;

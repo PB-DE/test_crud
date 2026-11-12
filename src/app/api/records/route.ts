@@ -1,6 +1,23 @@
 import { NextResponse } from 'next/server';
-import { sheetsService } from '@/lib/sheets';
-import { isValidAssetStatus } from '@/lib/types';
+import { sheetsService, parseUnitPrice } from '@/lib/sheets';
+import {
+  isValidAssetStatus,
+  ConfigurableFieldKey,
+  DEFAULT_FIELD_SETTINGS,
+  FieldSetting,
+} from '@/lib/types';
+
+async function loadSafeFieldSettings(): Promise<FieldSetting[]> {
+  try {
+    return await sheetsService.getFieldSettings();
+  } catch {
+    return DEFAULT_FIELD_SETTINGS;
+  }
+}
+
+function isRequired(settings: FieldSetting[], key: ConfigurableFieldKey): boolean {
+  return settings.find((s) => s.fieldKey === key)?.required ?? false;
+}
 
 export async function GET(_request: Request) {
   try {
@@ -33,8 +50,21 @@ export async function POST(request: Request) {
     );
   }
 
-  const { assetCode, name, location, status, responsiblePerson, recordedBy, notes, imageUrl } =
-    body || {};
+  const {
+    assetCode,
+    name,
+    location,
+    status,
+    responsiblePerson,
+    recordedBy,
+    notes,
+    imageUrl,
+    mainCategory,
+    subCategory,
+    acquisitionDate,
+    unitPrice,
+    budgetSource,
+  } = body || {};
 
   if (!assetCode || typeof assetCode !== 'string' || assetCode.trim().length === 0) {
     return NextResponse.json(
@@ -43,34 +73,86 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+  const fieldSettings = await loadSafeFieldSettings();
+  const hasStr = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
+
+  if (isRequired(fieldSettings, 'name') && !hasStr(name)) {
     return NextResponse.json(
       { success: false, error: 'Name is required' },
       { status: 400 }
     );
   }
 
-  if (!location || typeof location !== 'string' || location.trim().length === 0) {
+  if (isRequired(fieldSettings, 'location') && !hasStr(location)) {
     return NextResponse.json(
       { success: false, error: 'Location is required' },
       { status: 400 }
     );
   }
 
-  if (
-    !responsiblePerson ||
-    typeof responsiblePerson !== 'string' ||
-    responsiblePerson.trim().length === 0
-  ) {
+  if (isRequired(fieldSettings, 'responsiblePerson') && !hasStr(responsiblePerson)) {
     return NextResponse.json(
       { success: false, error: 'Responsible person is required' },
       { status: 400 }
     );
   }
 
-  if (!recordedBy || typeof recordedBy !== 'string' || recordedBy.trim().length === 0) {
+  if (isRequired(fieldSettings, 'recordedBy') && !hasStr(recordedBy)) {
     return NextResponse.json(
       { success: false, error: 'Recorded by is required' },
+      { status: 400 }
+    );
+  }
+
+  if (isRequired(fieldSettings, 'mainCategory') && !hasStr(mainCategory)) {
+    return NextResponse.json(
+      { success: false, error: 'กรุณาระบุประเภทหลัก' },
+      { status: 400 }
+    );
+  }
+
+  if (isRequired(fieldSettings, 'subCategory') && !hasStr(subCategory)) {
+    return NextResponse.json(
+      { success: false, error: 'กรุณาระบุประเภทย่อย' },
+      { status: 400 }
+    );
+  }
+
+  if (isRequired(fieldSettings, 'acquisitionDate') && !hasStr(acquisitionDate)) {
+    return NextResponse.json(
+      { success: false, error: 'กรุณาระบุวันที่ได้มา' },
+      { status: 400 }
+    );
+  }
+
+  const hasUnitPriceValue =
+    unitPrice !== undefined && unitPrice !== null && String(unitPrice).trim() !== '';
+  let parsedUnitPrice: number | undefined = undefined;
+  if (hasUnitPriceValue) {
+    parsedUnitPrice = parseUnitPrice(unitPrice);
+    if (parsedUnitPrice === undefined) {
+      return NextResponse.json(
+        { success: false, error: 'ราคา/หน่วย ต้องเป็นตัวเลขที่ไม่ติดลบ' },
+        { status: 400 }
+      );
+    }
+  } else if (isRequired(fieldSettings, 'unitPrice')) {
+    return NextResponse.json(
+      { success: false, error: 'กรุณาระบุราคา/หน่วย' },
+      { status: 400 }
+    );
+  }
+
+  if (isRequired(fieldSettings, 'budgetSource') && !hasStr(budgetSource)) {
+    return NextResponse.json(
+      { success: false, error: 'กรุณาระบุงบที่ซื้อ' },
+      { status: 400 }
+    );
+  }
+
+  if (isRequired(fieldSettings, 'notes') && !hasStr(notes)) {
+    return NextResponse.json(
+      { success: false, error: 'กรุณาระบุหมายเหตุ' },
       { status: 400 }
     );
   }
@@ -90,13 +172,18 @@ export async function POST(request: Request) {
   try {
     const newRecord = await sheetsService.createRecord({
       assetCode: assetCode.trim(),
-      name: name.trim(),
-      location: location.trim(),
+      name: typeof name === 'string' ? name.trim() : '',
+      location: typeof location === 'string' ? location.trim() : '',
       status: recordStatus,
-      responsiblePerson: responsiblePerson.trim(),
-      recordedBy: recordedBy.trim(),
+      responsiblePerson: typeof responsiblePerson === 'string' ? responsiblePerson.trim() : '',
+      recordedBy: typeof recordedBy === 'string' ? recordedBy.trim() : '',
       notes: typeof notes === 'string' ? notes.trim() : '',
       imageUrl: typeof imageUrl === 'string' && imageUrl.trim().length > 0 ? imageUrl.trim() : undefined,
+      mainCategory: typeof mainCategory === 'string' && mainCategory.trim().length > 0 ? mainCategory.trim() : undefined,
+      subCategory: typeof subCategory === 'string' && subCategory.trim().length > 0 ? subCategory.trim() : undefined,
+      acquisitionDate: typeof acquisitionDate === 'string' && acquisitionDate.trim().length > 0 ? acquisitionDate.trim() : undefined,
+      unitPrice: parsedUnitPrice,
+      budgetSource: typeof budgetSource === 'string' && budgetSource.trim().length > 0 ? budgetSource.trim() : undefined,
     });
 
     return NextResponse.json(

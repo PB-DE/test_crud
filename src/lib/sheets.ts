@@ -10,6 +10,12 @@ import {
   LogAction,
   AssetTransaction,
   TransactionAction,
+  DropdownOption,
+  DropdownFieldKey,
+  FieldSetting,
+  ConfigurableFieldKey,
+  DEFAULT_FIELD_SETTINGS,
+  SystemOptionsPayload,
 } from './types';
 import {
   computeAssetDiff,
@@ -32,9 +38,34 @@ export const HEADER_ROW = [
   'ผู้บันทึก',
   'หมายเหตุ',
   'รูปภาพ',
+  'ประเภทหลัก',
+  'ประเภทย่อย',
+  'วันที่ได้มา',
+  'ราคา/หน่วย',
+  'งบที่ซื้อ',
 ];
 
-export const RANGE_ALL = 'A:K';
+export const RANGE_ALL = 'A:Z';
+
+export const DROPDOWNS_SHEET_NAME = 'Dropdowns';
+export const DROPDOWNS_HEADER_ROW = [
+  'ID',
+  'ประเภทฟิลด์',
+  'ค่าตัวเลือก',
+  'ประเภทหลักอ้างอิง',
+  'วันที่แก้ไข',
+];
+export const RANGE_DROPDOWNS_ALL = 'Dropdowns!A:E';
+
+export const FIELD_SETTINGS_SHEET_NAME = 'FieldSettings';
+export const FIELD_SETTINGS_HEADER_ROW = [
+  'FieldKey',
+  'ชื่อฟิลด์',
+  'บังคับกรอก',
+  'ใช้ Dropdown',
+  'รองรับ Dropdown',
+];
+export const RANGE_FIELD_SETTINGS_ALL = 'FieldSettings!A:E';
 
 export const LOG_HEADER_ROW = [
   'Log ID',
@@ -128,8 +159,28 @@ const INITIAL_DEMO_TRANSACTIONS: AssetTransaction[] = [
   },
 ];
 
+const INITIAL_DEMO_DROPDOWNS: DropdownOption[] = [
+  { id: 'opt-mc-1', fieldKey: 'mainCategory', value: 'ครุภัณฑ์สำนักงาน' },
+  { id: 'opt-mc-2', fieldKey: 'mainCategory', value: 'ครุภัณฑ์คอมพิวเตอร์' },
+  { id: 'opt-mc-3', fieldKey: 'mainCategory', value: 'ครุภัณฑ์ยานพาหนะและขนส่ง' },
+  { id: 'opt-sc-1', fieldKey: 'subCategory', value: 'โต๊ะทำงาน', parentValue: 'ครุภัณฑ์สำนักงาน' },
+  { id: 'opt-sc-2', fieldKey: 'subCategory', value: 'เก้าอี้สำนักงาน', parentValue: 'ครุภัณฑ์สำนักงาน' },
+  { id: 'opt-sc-3', fieldKey: 'subCategory', value: 'ตู้เก็บเอกสาร', parentValue: 'ครุภัณฑ์สำนักงาน' },
+  { id: 'opt-sc-4', fieldKey: 'subCategory', value: 'คอมพิวเตอร์ตั้งโต๊ะ', parentValue: 'ครุภัณฑ์คอมพิวเตอร์' },
+  { id: 'opt-sc-5', fieldKey: 'subCategory', value: 'เครื่องพิมพ์เลเซอร์', parentValue: 'ครุภัณฑ์คอมพิวเตอร์' },
+  { id: 'opt-sc-6', fieldKey: 'subCategory', value: 'จอมอนิเตอร์', parentValue: 'ครุภัณฑ์คอมพิวเตอร์' },
+  { id: 'opt-sc-7', fieldKey: 'subCategory', value: 'รถยนต์ตรวจการณ์', parentValue: 'ครุภัณฑ์ยานพาหนะและขนส่ง' },
+  { id: 'opt-loc-1', fieldKey: 'location', value: 'ฝ่ายเทคโนโลยีสารสนเทศ ชั้น 4' },
+  { id: 'opt-loc-2', fieldKey: 'location', value: 'กองบริหารงานทั่วไป ชั้น 2' },
+  { id: 'opt-loc-3', fieldKey: 'location', value: 'ฝ่ายออกแบบและสื่อสิ่งพิมพ์ ชั้น 3' },
+  { id: 'opt-loc-4', fieldKey: 'location', value: 'ห้องประชุมผู้บริหาร ชั้น 5' },
+  { id: 'opt-loc-5', fieldKey: 'location', value: 'คลังพัสดุ' },
+];
+
 let demoTransactions: AssetTransaction[] = INITIAL_DEMO_TRANSACTIONS.map((t) => ({ ...t }));
 let demoLogsStore: AssetLogRecord[] = [];
+let demoDropdownsStore: DropdownOption[] = INITIAL_DEMO_DROPDOWNS.map((o) => ({ ...o }));
+let demoFieldSettingsStore: FieldSetting[] = DEFAULT_FIELD_SETTINGS.map((s) => ({ ...s }));
 
 export class AssetCollisionError extends Error {
   code = 'COLLISION';
@@ -147,43 +198,125 @@ function generateId(): string {
   return 'rec-' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
 }
 
-function rowToTransaction(row: string[]): AssetTransaction {
-  const actionCandidate = row?.[2];
-  const statusCandidate = row?.[6];
-  return {
-    id: row?.[0] ?? '',
-    timestamp: row?.[1] ?? '',
-    action: (actionCandidate as TransactionAction) || 'บันทึกรายการใหม่',
-    assetCode: row?.[3] ?? '',
-    name: row?.[4] ?? '',
-    location: row?.[5] ?? '',
-    status: isValidAssetStatus(statusCandidate) ? statusCandidate : 'พร้อมใช้งาน',
-    responsiblePerson: row?.[7] ?? '',
-    recordedBy: row?.[8] ?? '',
-    notes: row?.[9] ?? '',
-    imageUrl: row?.[10]?.trim() || undefined,
-  };
+export type HeaderIndexMap = Map<string, number>;
+
+export function buildHeaderMap(headerRow: string[] = []): HeaderIndexMap {
+  const map: HeaderIndexMap = new Map();
+  headerRow.forEach((cell, index) => {
+    const normalized = String(cell ?? '').trim();
+    if (normalized && !map.has(normalized)) {
+      map.set(normalized, index);
+    }
+  });
+  return map;
 }
 
-function transactionToRow(tx: AssetTransaction): string[] {
+export function columnIndexToLetter(index: number): string {
+  let letter = '';
+  let n = index;
+  while (n >= 0) {
+    letter = String.fromCharCode((n % 26) + 65) + letter;
+    n = Math.floor(n / 26) - 1;
+  }
+  return letter;
+}
+
+export function parseUnitPrice(raw: unknown): number | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  if (typeof raw === 'number') {
+    return Number.isFinite(raw) && raw >= 0 ? raw : undefined;
+  }
+  const cleaned = String(raw).replace(/,/g, '').trim();
+  if (!cleaned) return undefined;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+const DEFAULT_HEADER_MAP = buildHeaderMap(HEADER_ROW);
+
+export function rowToTransaction(
+  row: string[],
+  headerMap: HeaderIndexMap = DEFAULT_HEADER_MAP
+): AssetTransaction {
+  const getCell = (header: string): string => {
+    const idx = headerMap.get(header);
+    if (idx === undefined) return '';
+    return String(row?.[idx] ?? '');
+  };
+
+  const actionCandidate = getCell('การกระทำ');
+  const statusCandidate = getCell('สถานะ');
+  const imageUrl = getCell('รูปภาพ').trim() || undefined;
+  const mainCategory = getCell('ประเภทหลัก').trim() || undefined;
+  const subCategory = getCell('ประเภทย่อย').trim() || undefined;
+  const acquisitionDate = getCell('วันที่ได้มา').trim() || undefined;
+  const unitPrice = parseUnitPrice(getCell('ราคา/หน่วย'));
+  const budgetSource = getCell('งบที่ซื้อ').trim() || undefined;
+
+  const tx: AssetTransaction = {
+    id: getCell('ID'),
+    timestamp: getCell('วันเวลาที่ทำรายการ'),
+    action: (actionCandidate as TransactionAction) || 'บันทึกรายการใหม่',
+    assetCode: getCell('รหัสครุภัณฑ์'),
+    name: getCell('ชื่อครุภัณฑ์'),
+    location: getCell('ตำแหน่งที่ตั้ง'),
+    status: isValidAssetStatus(statusCandidate) ? statusCandidate : 'พร้อมใช้งาน',
+    responsiblePerson: getCell('ผู้รับผิดชอบ'),
+    recordedBy: getCell('ผู้บันทึก'),
+    notes: getCell('หมายเหตุ'),
+  };
+
+  if (imageUrl !== undefined) tx.imageUrl = imageUrl;
+  if (mainCategory !== undefined) tx.mainCategory = mainCategory;
+  if (subCategory !== undefined) tx.subCategory = subCategory;
+  if (acquisitionDate !== undefined) tx.acquisitionDate = acquisitionDate;
+  if (unitPrice !== undefined) tx.unitPrice = unitPrice;
+  if (budgetSource !== undefined) tx.budgetSource = budgetSource;
+
+  return tx;
+}
+
+export function transactionToRow(
+  tx: AssetTransaction,
+  headerMap: HeaderIndexMap = DEFAULT_HEADER_MAP
+): string[] {
   let cleanImageUrl = tx.imageUrl?.trim() || '';
   // Google Sheets cell character limit is 50,000; reject local blob: URIs and oversize strings
   if (cleanImageUrl.startsWith('blob:') || cleanImageUrl.length > 5000) {
     cleanImageUrl = '';
   }
-  return [
-    tx.id,
-    tx.timestamp,
-    tx.action,
-    tx.assetCode,
-    tx.name,
-    tx.location,
-    tx.status,
-    tx.responsiblePerson,
-    tx.recordedBy,
-    tx.notes,
-    cleanImageUrl,
-  ];
+
+  let maxIdx = HEADER_ROW.length - 1;
+  for (const idx of headerMap.values()) {
+    if (idx > maxIdx) maxIdx = idx;
+  }
+
+  const row = new Array<string>(maxIdx + 1).fill('');
+  const setCell = (header: string, value: string) => {
+    const idx = headerMap.get(header);
+    if (idx !== undefined) {
+      row[idx] = value;
+    }
+  };
+
+  setCell('ID', tx.id);
+  setCell('วันเวลาที่ทำรายการ', tx.timestamp);
+  setCell('การกระทำ', tx.action);
+  setCell('รหัสครุภัณฑ์', tx.assetCode);
+  setCell('ชื่อครุภัณฑ์', tx.name);
+  setCell('ตำแหน่งที่ตั้ง', tx.location);
+  setCell('สถานะ', tx.status);
+  setCell('ผู้รับผิดชอบ', tx.responsiblePerson);
+  setCell('ผู้บันทึก', tx.recordedBy);
+  setCell('หมายเหตุ', tx.notes ?? '');
+  setCell('รูปภาพ', cleanImageUrl);
+  setCell('ประเภทหลัก', tx.mainCategory?.trim() || '');
+  setCell('ประเภทย่อย', tx.subCategory?.trim() || '');
+  setCell('วันที่ได้มา', tx.acquisitionDate?.trim() || '');
+  setCell('ราคา/หน่วย', tx.unitPrice !== undefined ? String(tx.unitPrice) : '');
+  setCell('งบที่ซื้อ', tx.budgetSource?.trim() || '');
+
+  return row;
 }
 
 function rowToLogRecord(
@@ -365,35 +498,183 @@ export async function uploadImageToDrive(
   };
 }
 
-async function ensureHeaderRow(sheets: sheets_v4.Sheets, spreadsheetId: string): Promise<string[][]> {
+interface HeaderEnsureResult {
+  values: string[][];
+  headerMap: HeaderIndexMap;
+}
+
+async function ensureHeaderRow(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string
+): Promise<HeaderEnsureResult> {
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
     range: RANGE_ALL,
   });
 
   const values = res.data.values;
-  if (!values || values.length === 0) {
+  if (!values || values.length === 0 || !values[0] || values[0].length === 0) {
+    const endCol = columnIndexToLetter(HEADER_ROW.length - 1);
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'A1:K1',
+      range: `A1:${endCol}1`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [HEADER_ROW] },
     });
-    return [HEADER_ROW];
+    return {
+      values: [HEADER_ROW],
+      headerMap: buildHeaderMap(HEADER_ROW),
+    };
   }
 
-  // Self-healing: if the existing header doesn't match HEADER_ROW, update it
-  if (values[0]?.[1] !== HEADER_ROW[1] || values[0].length < HEADER_ROW.length) {
+  // Non-destructive header alignment: preserve existing column order (supports user reordering!)
+  // Only append missing headers to the right of existing headers.
+  let headerRow = [...values[0]];
+  let headerMap = buildHeaderMap(headerRow);
+  const missingHeaders = HEADER_ROW.filter((h) => !headerMap.has(h));
+
+  if (missingHeaders.length > 0) {
+    const startIdx = headerRow.length;
+    const startCol = columnIndexToLetter(startIdx);
+    const endCol = columnIndexToLetter(startIdx + missingHeaders.length - 1);
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'A1:K1',
+      range: `${startCol}1:${endCol}1`,
       valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [HEADER_ROW] },
+      requestBody: { values: [missingHeaders] },
     });
-    values[0] = HEADER_ROW;
+    headerRow = [...headerRow, ...missingHeaders];
+    values[0] = headerRow;
+    headerMap = buildHeaderMap(headerRow);
+  }
+
+  return { values, headerMap };
+}
+
+async function ensureSheetExists(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  title: string
+): Promise<void> {
+  const metadata = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'sheets.properties.title',
+  });
+  const sheetTitles = metadata?.data?.sheets?.map((s) => s.properties?.title) ?? [];
+  if (!sheetTitles.includes(title)) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [
+          {
+            addSheet: {
+              properties: { title },
+            },
+          },
+        ],
+      },
+    });
+  }
+}
+
+async function ensureDropdownsSheet(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string
+): Promise<string[][]> {
+  await ensureSheetExists(sheets, spreadsheetId, DROPDOWNS_SHEET_NAME);
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: RANGE_DROPDOWNS_ALL,
+  });
+
+  const values = res?.data?.values;
+  if (!values || values.length === 0 || !values[0] || values[0].length === 0) {
+    const now = new Date().toISOString();
+    const seedRows = INITIAL_DEMO_DROPDOWNS.map((opt) => [
+      opt.id,
+      opt.fieldKey,
+      opt.value,
+      opt.parentValue || '',
+      now,
+    ]);
+    const allRows = [DROPDOWNS_HEADER_ROW, ...seedRows];
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${DROPDOWNS_SHEET_NAME}!A1:E${allRows.length}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: allRows },
+    });
+    return allRows;
   }
 
   return values;
+}
+
+async function ensureFieldSettingsSheet(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string
+): Promise<string[][]> {
+  await ensureSheetExists(sheets, spreadsheetId, FIELD_SETTINGS_SHEET_NAME);
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: RANGE_FIELD_SETTINGS_ALL,
+  });
+
+  const values = res?.data?.values;
+  if (!values || values.length === 0 || !values[0] || values[0].length === 0) {
+    const seedRows = DEFAULT_FIELD_SETTINGS.map((s) => [
+      s.fieldKey,
+      s.label,
+      s.required ? 'TRUE' : 'FALSE',
+      s.useDropdown ? 'TRUE' : 'FALSE',
+      s.supportsDropdown ? 'TRUE' : 'FALSE',
+    ]);
+    const allRows = [FIELD_SETTINGS_HEADER_ROW, ...seedRows];
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${FIELD_SETTINGS_SHEET_NAME}!A1:E${allRows.length}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: allRows },
+    });
+    return allRows;
+  }
+
+  return values;
+}
+
+function parseBoolCell(val: unknown, fallback = false): boolean {
+  if (typeof val === 'boolean') return val;
+  const s = String(val ?? '').trim().toUpperCase();
+  if (s === 'TRUE' || s === '1' || s === 'YES') return true;
+  if (s === 'FALSE' || s === '0' || s === 'NO') return false;
+  return fallback;
+}
+
+function rowToDropdownOption(row: string[]): DropdownOption | null {
+  const id = (row?.[0] ?? '').trim();
+  const fieldKey = (row?.[1] ?? '').trim() as DropdownFieldKey;
+  const value = (row?.[2] ?? '').trim();
+  if (!id || !fieldKey || !value) return null;
+  const parentValue = (row?.[3] ?? '').trim() || undefined;
+  const updatedAt = (row?.[4] ?? '').trim() || undefined;
+  return { id, fieldKey, value, parentValue, updatedAt };
+}
+
+function mergeFieldSettingsWithDefaults(parsed: FieldSetting[]): FieldSetting[] {
+  const parsedMap = new Map(parsed.map((s) => [s.fieldKey, s]));
+  return DEFAULT_FIELD_SETTINGS.map((def) => {
+    const custom = parsedMap.get(def.fieldKey);
+    if (!custom) return { ...def };
+    return {
+      fieldKey: def.fieldKey,
+      label: def.label,
+      required: custom.required,
+      useDropdown: def.supportsDropdown ? custom.useDropdown : false,
+      supportsDropdown: def.supportsDropdown,
+    };
+  });
 }
 
 export async function ensureLogsSheet(
@@ -457,6 +738,8 @@ export const sheetsService = {
   resetDemoStore(): void {
     demoTransactions = INITIAL_DEMO_TRANSACTIONS.map((t) => ({ ...t }));
     demoLogsStore = [];
+    demoDropdownsStore = INITIAL_DEMO_DROPDOWNS.map((o) => ({ ...o }));
+    demoFieldSettingsStore = DEFAULT_FIELD_SETTINGS.map((s) => ({ ...s }));
   },
 
   async getTransactions(): Promise<AssetTransaction[]> {
@@ -466,12 +749,13 @@ export const sheetsService = {
     }
 
     const { sheets, spreadsheetId } = client;
-    const values = await ensureHeaderRow(sheets, spreadsheetId);
+    const { values, headerMap } = await ensureHeaderRow(sheets, spreadsheetId);
+    const idIdx = headerMap.get('ID') ?? 0;
 
     const dataRows = values.slice(1);
     return dataRows
-      .filter((row) => row && row[0] && row[0].trim().length > 0)
-      .map(rowToTransaction);
+      .filter((row) => row && row[idIdx] && String(row[idIdx]).trim().length > 0)
+      .map((row) => rowToTransaction(row, headerMap));
   },
 
   async getRecords(): Promise<AssetRecord[]> {
@@ -626,6 +910,12 @@ export const sheetsService = {
     const now = new Date().toISOString();
     const action: TransactionAction = isUpdate ? 'แก้ไข/ย้ายตำแหน่ง' : 'บันทึกรายการใหม่';
 
+    const cleanOpt = (val: string | undefined, fallback?: string): string | undefined => {
+      if (val === undefined) return fallback;
+      const trimmed = val.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    };
+
     const newTx: AssetTransaction = {
       id: isUpdate && existing ? existing.id : generateId(),
       timestamp: now,
@@ -638,6 +928,11 @@ export const sheetsService = {
       recordedBy: data.recordedBy,
       notes: data.notes || '',
       imageUrl: data.imageUrl || (isUpdate && existing ? existing.imageUrl : undefined),
+      mainCategory: cleanOpt(data.mainCategory, isUpdate && existing ? existing.mainCategory : undefined),
+      subCategory: cleanOpt(data.subCategory, isUpdate && existing ? existing.subCategory : undefined),
+      acquisitionDate: cleanOpt(data.acquisitionDate, isUpdate && existing ? existing.acquisitionDate : undefined),
+      unitPrice: data.unitPrice !== undefined ? parseUnitPrice(data.unitPrice) : (isUpdate && existing ? existing.unitPrice : undefined),
+      budgetSource: cleanOpt(data.budgetSource, isUpdate && existing ? existing.budgetSource : undefined),
     };
 
     const client = getSheetsClient();
@@ -645,7 +940,7 @@ export const sheetsService = {
       demoTransactions.push(newTx);
     } else {
       const { sheets, spreadsheetId } = client;
-      await ensureHeaderRow(sheets, spreadsheetId);
+      const { headerMap } = await ensureHeaderRow(sheets, spreadsheetId);
 
       await sheets.spreadsheets.values.append({
         spreadsheetId,
@@ -653,7 +948,7 @@ export const sheetsService = {
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
-          values: [transactionToRow(newTx)],
+          values: [transactionToRow(newTx, headerMap)],
         },
       });
     }
@@ -691,6 +986,11 @@ export const sheetsService = {
       recordedBy: newTx.recordedBy,
       notes: newTx.notes,
       imageUrl: newTx.imageUrl,
+      ...(newTx.mainCategory !== undefined ? { mainCategory: newTx.mainCategory } : {}),
+      ...(newTx.subCategory !== undefined ? { subCategory: newTx.subCategory } : {}),
+      ...(newTx.acquisitionDate !== undefined ? { acquisitionDate: newTx.acquisitionDate } : {}),
+      ...(newTx.unitPrice !== undefined ? { unitPrice: newTx.unitPrice } : {}),
+      ...(newTx.budgetSource !== undefined ? { budgetSource: newTx.budgetSource } : {}),
       createdAt: isUpdate && existing ? existing.createdAt : newTx.timestamp,
       updatedAt: newTx.timestamp,
       transactionCount: (existing?.transactionCount || 0) + 1,
@@ -728,6 +1028,12 @@ export const sheetsService = {
       }
     }
 
+    const cleanOpt = (val: string | undefined, fallback?: string): string | undefined => {
+      if (val === undefined) return fallback;
+      const trimmed = val.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    };
+
     const now = sanitizedData.updatedAt ?? new Date().toISOString();
     const newTx: AssetTransaction = {
       id: generateId(),
@@ -747,6 +1053,11 @@ export const sheetsService = {
         : (existing.recordedBy || 'ระบบ'),
       notes: sanitizedData.notes !== undefined ? sanitizedData.notes : (existing.notes || ''),
       imageUrl: sanitizedData.imageUrl !== undefined ? sanitizedData.imageUrl : existing.imageUrl,
+      mainCategory: cleanOpt(sanitizedData.mainCategory, existing.mainCategory),
+      subCategory: cleanOpt(sanitizedData.subCategory, existing.subCategory),
+      acquisitionDate: cleanOpt(sanitizedData.acquisitionDate, existing.acquisitionDate),
+      unitPrice: sanitizedData.unitPrice !== undefined ? parseUnitPrice(sanitizedData.unitPrice) : existing.unitPrice,
+      budgetSource: cleanOpt(sanitizedData.budgetSource, existing.budgetSource),
     };
 
     const client = getSheetsClient();
@@ -754,7 +1065,7 @@ export const sheetsService = {
       demoTransactions.push(newTx);
     } else {
       const { sheets, spreadsheetId } = client;
-      await ensureHeaderRow(sheets, spreadsheetId);
+      const { headerMap } = await ensureHeaderRow(sheets, spreadsheetId);
 
       // Append transaction to sheet (never in-place overwrite)
       await sheets.spreadsheets.values.append({
@@ -763,7 +1074,7 @@ export const sheetsService = {
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
-          values: [transactionToRow(newTx)],
+          values: [transactionToRow(newTx, headerMap)],
         },
       });
     }
@@ -800,6 +1111,11 @@ export const sheetsService = {
       recordedBy: newTx.recordedBy,
       notes: newTx.notes,
       imageUrl: newTx.imageUrl,
+      ...(newTx.mainCategory !== undefined ? { mainCategory: newTx.mainCategory } : {}),
+      ...(newTx.subCategory !== undefined ? { subCategory: newTx.subCategory } : {}),
+      ...(newTx.acquisitionDate !== undefined ? { acquisitionDate: newTx.acquisitionDate } : {}),
+      ...(newTx.unitPrice !== undefined ? { unitPrice: newTx.unitPrice } : {}),
+      ...(newTx.budgetSource !== undefined ? { budgetSource: newTx.budgetSource } : {}),
       createdAt: existing.createdAt,
       updatedAt: newTx.timestamp,
       transactionCount: (existing.transactionCount || 1) + 1,
@@ -829,6 +1145,11 @@ export const sheetsService = {
       recordedBy: recordedBy || existing.recordedBy || 'ระบบ',
       notes: notes || 'จำหน่าย/ตัดบัญชีออกจากระบบ',
       imageUrl: existing.imageUrl,
+      mainCategory: existing.mainCategory,
+      subCategory: existing.subCategory,
+      acquisitionDate: existing.acquisitionDate,
+      unitPrice: existing.unitPrice,
+      budgetSource: existing.budgetSource,
     };
 
     const client = getSheetsClient();
@@ -836,7 +1157,7 @@ export const sheetsService = {
       demoTransactions.push(newTx);
     } else {
       const { sheets, spreadsheetId } = client;
-      await ensureHeaderRow(sheets, spreadsheetId);
+      const { headerMap } = await ensureHeaderRow(sheets, spreadsheetId);
 
       // Append decommission transaction (never deleteDimension)
       await sheets.spreadsheets.values.append({
@@ -845,7 +1166,7 @@ export const sheetsService = {
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: {
-          values: [transactionToRow(newTx)],
+          values: [transactionToRow(newTx, headerMap)],
         },
       });
     }
@@ -872,6 +1193,193 @@ export const sheetsService = {
       console.error('Failed to append audit log for deleteRecord:', logErr);
     }
 
+    return true;
+  },
+
+  async getFieldSettings(): Promise<FieldSetting[]> {
+    const client = getSheetsClient();
+    if (!client) {
+      return demoFieldSettingsStore.map((s) => ({ ...s }));
+    }
+
+    const { sheets, spreadsheetId } = client;
+    const values = await ensureFieldSettingsSheet(sheets, spreadsheetId);
+    const parsed: FieldSetting[] = values
+      .slice(1)
+      .filter((row) => row && row[0] && String(row[0]).trim().length > 0)
+      .map((row) => ({
+        fieldKey: String(row[0]).trim() as ConfigurableFieldKey,
+        label: String(row[1] ?? '').trim(),
+        required: parseBoolCell(row[2], false),
+        useDropdown: parseBoolCell(row[3], false),
+        supportsDropdown: parseBoolCell(row[4], false),
+      }));
+
+    return mergeFieldSettingsWithDefaults(parsed);
+  },
+
+  async saveFieldSettings(settings: FieldSetting[]): Promise<FieldSetting[]> {
+    const merged = mergeFieldSettingsWithDefaults(settings);
+    const client = getSheetsClient();
+    if (!client) {
+      demoFieldSettingsStore = merged.map((s) => ({ ...s }));
+      return demoFieldSettingsStore.map((s) => ({ ...s }));
+    }
+
+    const { sheets, spreadsheetId } = client;
+    await ensureFieldSettingsSheet(sheets, spreadsheetId);
+    const rows = merged.map((s) => [
+      s.fieldKey,
+      s.label,
+      s.required ? 'TRUE' : 'FALSE',
+      s.useDropdown ? 'TRUE' : 'FALSE',
+      s.supportsDropdown ? 'TRUE' : 'FALSE',
+    ]);
+    const allRows = [FIELD_SETTINGS_HEADER_ROW, ...rows];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${FIELD_SETTINGS_SHEET_NAME}!A1:E${allRows.length}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: allRows },
+    });
+
+    return merged;
+  },
+
+  async getDropdownOptions(): Promise<DropdownOption[]> {
+    const client = getSheetsClient();
+    if (!client) {
+      return demoDropdownsStore.map((o) => ({ ...o }));
+    }
+
+    const { sheets, spreadsheetId } = client;
+    const values = await ensureDropdownsSheet(sheets, spreadsheetId);
+    return values
+      .slice(1)
+      .map(rowToDropdownOption)
+      .filter((o): o is DropdownOption => o !== null);
+  },
+
+  async getOptionsAndSettings(): Promise<SystemOptionsPayload> {
+    const [options, fieldSettings] = await Promise.all([
+      this.getDropdownOptions(),
+      this.getFieldSettings(),
+    ]);
+    return { options, fieldSettings };
+  },
+
+  async _persistDropdownOptions(options: DropdownOption[], previousCount = 0): Promise<void> {
+    const client = getSheetsClient();
+    if (!client) {
+      demoDropdownsStore = options.map((o) => ({ ...o }));
+      return;
+    }
+
+    const { sheets, spreadsheetId } = client;
+    const now = new Date().toISOString();
+    const rows = options.map((opt) => [
+      opt.id,
+      opt.fieldKey,
+      opt.value,
+      opt.parentValue || '',
+      opt.updatedAt || now,
+    ]);
+    const allRows: string[][] = [DROPDOWNS_HEADER_ROW, ...rows];
+
+    // Pad trailing empty rows if list shrank so old cells are cleared without requiring batchUpdate deleteDimension
+    const totalNeeded = Math.max(allRows.length, previousCount + 1);
+    while (allRows.length < totalNeeded) {
+      allRows.push(['', '', '', '', '']);
+    }
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `${DROPDOWNS_SHEET_NAME}!A1:E${allRows.length}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: allRows },
+    });
+  },
+
+  async createDropdownOption(input: {
+    fieldKey: DropdownFieldKey;
+    value: string;
+    parentValue?: string;
+  }): Promise<DropdownOption> {
+    const current = await this.getDropdownOptions();
+    const trimmedValue = input.value.trim();
+    const trimmedParent = input.parentValue?.trim() || undefined;
+
+    const duplicate = current.find(
+      (o) =>
+        o.fieldKey === input.fieldKey &&
+        o.value.toLowerCase() === trimmedValue.toLowerCase() &&
+        (o.parentValue || '') === (trimmedParent || '')
+    );
+    if (duplicate) {
+      return duplicate;
+    }
+
+    const newOpt: DropdownOption = {
+      id: `opt-${generateId()}`,
+      fieldKey: input.fieldKey,
+      value: trimmedValue,
+      ...(trimmedParent ? { parentValue: trimmedParent } : {}),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const next = [...current, newOpt];
+    await this._persistDropdownOptions(next, current.length);
+    return newOpt;
+  },
+
+  async updateDropdownOption(
+    id: string,
+    input: { value: string; parentValue?: string }
+  ): Promise<DropdownOption | null> {
+    const current = await this.getDropdownOptions();
+    const targetIdx = current.findIndex((o) => o.id === id);
+    if (targetIdx === -1) return null;
+
+    const existing = current[targetIdx];
+    const nextValue = input.value.trim();
+    const nextParent = input.parentValue !== undefined
+      ? (input.parentValue.trim() || undefined)
+      : existing.parentValue;
+    const now = new Date().toISOString();
+
+    const updatedOpt: DropdownOption = {
+      ...existing,
+      value: nextValue,
+      ...(nextParent ? { parentValue: nextParent } : { parentValue: undefined }),
+      updatedAt: now,
+    };
+
+    // If a mainCategory value was renamed, automatically cascade update linked subCategories
+    const next = current.map((opt) => {
+      if (opt.id === id) return updatedOpt;
+      if (
+        existing.fieldKey === 'mainCategory' &&
+        opt.fieldKey === 'subCategory' &&
+        opt.parentValue === existing.value &&
+        nextValue !== existing.value
+      ) {
+        return { ...opt, parentValue: nextValue, updatedAt: now };
+      }
+      return opt;
+    });
+
+    await this._persistDropdownOptions(next, current.length);
+    return updatedOpt;
+  },
+
+  async deleteDropdownOption(id: string): Promise<boolean> {
+    const current = await this.getDropdownOptions();
+    const target = current.find((o) => o.id === id);
+    if (!target) return false;
+
+    const next = current.filter((o) => o.id !== id);
+    await this._persistDropdownOptions(next, current.length);
     return true;
   },
 };

@@ -12,8 +12,8 @@ import * as envModule from '../src/lib/env';
 import { google } from 'googleapis';
 
 describe('HEADER_ROW and RANGE_ALL constants', () => {
-  it('defines the correct 11 Thai column headers for asset tracking transaction ledger', () => {
-    expect(HEADER_ROW).toHaveLength(11);
+  it('defines the correct 16 Thai column headers for asset tracking transaction ledger', () => {
+    expect(HEADER_ROW).toHaveLength(16);
     expect(HEADER_ROW).toEqual([
       'ID',
       'วันเวลาที่ทำรายการ',
@@ -26,11 +26,16 @@ describe('HEADER_ROW and RANGE_ALL constants', () => {
       'ผู้บันทึก',
       'หมายเหตุ',
       'รูปภาพ',
+      'ประเภทหลัก',
+      'ประเภทย่อย',
+      'วันที่ได้มา',
+      'ราคา/หน่วย',
+      'งบที่ซื้อ',
     ]);
   });
 
-  it('defines the correct column range A:K', () => {
-    expect(RANGE_ALL).toBe('A:K');
+  it('defines the correct column range A:Z', () => {
+    expect(RANGE_ALL).toBe('A:Z');
   });
 });
 
@@ -613,7 +618,7 @@ describe('sheetsService (Google Sheets mode)', () => {
 
     expect(mockValuesUpdate).toHaveBeenCalledWith({
       spreadsheetId: 'test-sheet-id',
-      range: 'A1:K1',
+      range: 'A1:P1',
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [HEADER_ROW] },
     });
@@ -727,7 +732,7 @@ describe('sheetsService (Google Sheets mode)', () => {
     expect(callArgs.spreadsheetId).toBe('test-sheet-id');
     expect(callArgs.range).toBe(RANGE_ALL);
     const rowValues = callArgs.requestBody.values[0];
-    expect(rowValues.length).toBe(11);
+    expect(rowValues.length).toBe(16);
     expect(rowValues[0]).toBe(created.id);
     expect(rowValues[1]).toBe(created.createdAt);
     expect(rowValues[2]).toBe('บันทึกรายการใหม่');
@@ -806,7 +811,7 @@ describe('sheetsService (Google Sheets mode)', () => {
 
     const callArgs = mockValuesAppend.mock.calls[0][0];
     const appendedRow = callArgs.requestBody.values[0];
-    expect(appendedRow.length).toBe(11);
+    expect(appendedRow.length).toBe(16);
     expect(appendedRow[2]).toBe('แก้ไข/ย้ายตำแหน่ง');
     expect(appendedRow[3]).toBe('EQ-2026-002');
     expect(appendedRow[4]).toBe('เครื่องพิมพ์ HP LaserJet Pro (อัปเกรด)');
@@ -1105,6 +1110,115 @@ describe('sheetsService (Google Sheets mode)', () => {
       expect(logs[1].id).toBe('log-1');
       expect(logs[0].assetCode).toBe('EQ-001');
       expect(logs[1].assetCode).toBe('EQ-001');
+    });
+
+    it('reads and writes accurately when Google Sheet columns are reordered (Dynamic Header Mapping)', async () => {
+      // Shuffled order: assetCode at 0, mainCategory at 1, ID at 2, unitPrice at 3, rest at 4..15
+      const shuffledHeaders = [
+        'รหัสครุภัณฑ์',
+        'ประเภทหลัก',
+        'ID',
+        'ราคา/หน่วย',
+        'ชื่อครุภัณฑ์',
+        'ตำแหน่งที่ตั้ง',
+        'สถานะ',
+        'ผู้รับผิดชอบ',
+        'ผู้บันทึก',
+        'วันเวลาที่ทำรายการ',
+        'การกระทำ',
+        'หมายเหตุ',
+        'รูปภาพ',
+        'ประเภทย่อย',
+        'วันที่ได้มา',
+        'งบที่ซื้อ',
+      ];
+
+      mockValuesGet.mockResolvedValueOnce({
+        data: {
+          values: [
+            shuffledHeaders,
+            [
+              'EQ-SHUFFLE-1',
+              'ครุภัณฑ์คอมพิวเตอร์',
+              'id-shuf-1',
+              '25,900.50',
+              'Mac Mini M4',
+              'ห้อง Server',
+              'กำลังใช้งาน',
+              'สมชาย',
+              'แอดมิน',
+              '2026-05-01T10:00:00.000Z',
+              'บันทึกรายการใหม่',
+              'ทดสอบสลับคอลัมน์',
+              '',
+              'คอมพิวเตอร์ตั้งโต๊ะ',
+              '2026-04-20',
+              'งบดำเนินงาน',
+            ],
+          ],
+        },
+      });
+
+      const records = await sheetsService.getRecords();
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({
+        id: 'id-shuf-1',
+        assetCode: 'EQ-SHUFFLE-1',
+        mainCategory: 'ครุภัณฑ์คอมพิวเตอร์',
+        subCategory: 'คอมพิวเตอร์ตั้งโต๊ะ',
+        acquisitionDate: '2026-04-20',
+        unitPrice: 25900.5,
+        budgetSource: 'งบดำเนินงาน',
+        name: 'Mac Mini M4',
+        location: 'ห้อง Server',
+        status: 'กำลังใช้งาน',
+      });
+
+      // Now create a new record against shuffled header sheet
+      mockValuesGet.mockResolvedValue({
+        data: { values: [shuffledHeaders] },
+      });
+
+      await sheetsService.createRecord({
+        assetCode: 'EQ-NEW-SHUF',
+        name: 'Switch 24 Port',
+        location: 'ห้อง Server',
+        status: 'พร้อมใช้งาน',
+        responsiblePerson: 'สมหญิง',
+        recordedBy: 'แอดมิน',
+        notes: '',
+        mainCategory: 'ครุภัณฑ์คอมพิวเตอร์',
+        subCategory: 'อุปกรณ์เครือข่าย',
+        acquisitionDate: '2026-11-10',
+        unitPrice: 12000,
+        budgetSource: 'งบลงทุน',
+      });
+
+      const appendedRow = mockValuesAppend.mock.calls[0][0].requestBody.values[0];
+      expect(appendedRow[0]).toBe('EQ-NEW-SHUF'); // รหัสครุภัณฑ์ at index 0
+      expect(appendedRow[1]).toBe('ครุภัณฑ์คอมพิวเตอร์'); // ประเภทหลัก at index 1
+      expect(appendedRow[3]).toBe('12000'); // ราคา/หน่วย at index 3
+      expect(appendedRow[13]).toBe('อุปกรณ์เครือข่าย'); // ประเภทย่อย at index 13
+      expect(appendedRow[14]).toBe('2026-11-10'); // วันที่ได้มา at index 14
+      expect(appendedRow[15]).toBe('งบลงทุน'); // งบที่ซื้อ at index 15
+    });
+
+    it('appends only missing new column headers to existing 11-column sheet without overwriting existing order', async () => {
+      const legacyHeaders = HEADER_ROW.slice(0, 11);
+      mockValuesGet.mockResolvedValueOnce({
+        data: { values: [legacyHeaders] },
+      });
+
+      await sheetsService.getRecords();
+
+      expect(mockValuesUpdate).toHaveBeenCalledWith({
+        spreadsheetId: 'test-sheet-id',
+        range: 'L1:P1',
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [['ประเภทหลัก', 'ประเภทย่อย', 'วันที่ได้มา', 'ราคา/หน่วย', 'งบที่ซื้อ']],
+        },
+      });
     });
   });
 });

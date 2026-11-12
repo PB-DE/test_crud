@@ -79,6 +79,32 @@ export function RecordTable({
     }
   };
 
+  const formatCurrency = (amount?: number) => {
+    if (amount === undefined || amount === null || !Number.isFinite(amount)) {
+      return null;
+    }
+    return amount.toLocaleString('th-TH', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const renderSortableHeader = (field: SortField, label: string, extraClass = '') => (
+    <th
+      scope="col"
+      tabIndex={0}
+      role="button"
+      onClick={() => onSortChange(field)}
+      onKeyDown={(e) => handleHeaderKeyDown(e, field)}
+      className={`py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100 whitespace-nowrap ${extraClass}`}
+    >
+      <div className="flex items-center gap-1.5">
+        <span>{label}</span>
+        {renderSortIndicator(field)}
+      </div>
+    </th>
+  );
+
   // Status badge styling
   const renderStatusBadge = (status: AssetStatus | string) => {
     switch (status) {
@@ -195,123 +221,32 @@ export function RecordTable({
         <table className="w-full text-left text-sm border-collapse">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 text-xs font-semibold uppercase tracking-wider">
-              {/* รหัสครุภัณฑ์ */}
-              <th
-                scope="col"
-                tabIndex={0}
-                role="button"
-                onClick={() => onSortChange('assetCode')}
-                onKeyDown={(e) => handleHeaderKeyDown(e, 'assetCode')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>รหัสครุภัณฑ์</span>
-                  {renderSortIndicator('assetCode')}
-                </div>
-              </th>
-
-              {/* ชื่อรายการครุภัณฑ์ */}
-              <th
-                scope="col"
-                tabIndex={0}
-                role="button"
-                onClick={() => onSortChange('name')}
-                onKeyDown={(e) => handleHeaderKeyDown(e, 'name')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>ชื่อรายการครุภัณฑ์</span>
-                  {renderSortIndicator('name')}
-                </div>
-              </th>
-
-              {/* ตำแหน่งที่ตั้ง */}
-              <th
-                scope="col"
-                tabIndex={0}
-                role="button"
-                onClick={() => onSortChange('location')}
-                onKeyDown={(e) => handleHeaderKeyDown(e, 'location')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>ตำแหน่งที่ตั้ง</span>
-                  {renderSortIndicator('location')}
-                </div>
-              </th>
-
-              {/* สถานะ */}
-              <th
-                scope="col"
-                tabIndex={0}
-                role="button"
-                onClick={() => onSortChange('status')}
-                onKeyDown={(e) => handleHeaderKeyDown(e, 'status')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>สถานะ</span>
-                  {renderSortIndicator('status')}
-                </div>
-              </th>
-
-              {/* ผู้รับผิดชอบ */}
-              <th
-                scope="col"
-                tabIndex={0}
-                role="button"
-                onClick={() => onSortChange('responsiblePerson')}
-                onKeyDown={(e) => handleHeaderKeyDown(e, 'responsiblePerson')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>ผู้รับผิดชอบ</span>
-                  {renderSortIndicator('responsiblePerson')}
-                </div>
-              </th>
-
-              {/* ผู้บันทึก */}
-              <th
-                scope="col"
-                tabIndex={0}
-                role="button"
-                onClick={() => onSortChange('recordedBy')}
-                onKeyDown={(e) => handleHeaderKeyDown(e, 'recordedBy')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>ผู้บันทึก</span>
-                  {renderSortIndicator('recordedBy')}
-                </div>
-              </th>
+              {renderSortableHeader('assetCode', 'รหัสครุภัณฑ์')}
+              {renderSortableHeader('name', 'ชื่อรายการครุภัณฑ์')}
+              {renderSortableHeader('mainCategory', 'ประเภทหลัก')}
+              {renderSortableHeader('subCategory', 'ประเภทย่อย')}
+              {renderSortableHeader('location', 'ตำแหน่งที่ตั้ง')}
+              {renderSortableHeader('status', 'สถานะ')}
+              {renderSortableHeader('acquisitionDate', 'วันที่ได้มา')}
+              {renderSortableHeader('unitPrice', 'ราคา/หน่วย')}
+              {renderSortableHeader('budgetSource', 'งบที่ซื้อ')}
+              {renderSortableHeader('responsiblePerson', 'ผู้รับผิดชอบ')}
+              {renderSortableHeader('recordedBy', 'ผู้บันทึก')}
 
               {/* หมายเหตุ */}
               <th
                 scope="col"
-                className="py-3 px-4 sm:px-5 text-slate-600 font-semibold"
+                className="py-3 px-4 sm:px-5 text-slate-600 font-semibold whitespace-nowrap"
               >
                 หมายเหตุ
               </th>
 
-              {/* อัปเดตล่าสุด */}
-              <th
-                scope="col"
-                tabIndex={0}
-                role="button"
-                onClick={() => onSortChange('updatedAt')}
-                onKeyDown={(e) => handleHeaderKeyDown(e, 'updatedAt')}
-                className="py-3 px-4 sm:px-5 cursor-pointer select-none hover:bg-slate-100/70 transition-colors group focus:outline-none focus:bg-slate-100"
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>อัปเดตล่าสุด</span>
-                  {renderSortIndicator('updatedAt')}
-                </div>
-              </th>
+              {renderSortableHeader('updatedAt', 'อัปเดตล่าสุด')}
 
               {/* จัดการ */}
               <th
                 scope="col"
-                className="py-3 px-4 sm:px-5 text-right text-slate-600 font-semibold"
+                className="py-3 px-4 sm:px-5 text-right text-slate-600 font-semibold whitespace-nowrap"
               >
                 จัดการ
               </th>
@@ -322,30 +257,11 @@ export function RecordTable({
               // Skeleton rows
               Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="animate-pulse">
-                  <td className="py-4 px-4 sm:px-5">
-                    <div className="h-4 w-24 bg-slate-200 rounded" />
-                  </td>
-                  <td className="py-4 px-4 sm:px-5">
-                    <div className="h-4 w-36 bg-slate-200 rounded" />
-                  </td>
-                  <td className="py-4 px-4 sm:px-5">
-                    <div className="h-4 w-28 bg-slate-200 rounded" />
-                  </td>
-                  <td className="py-4 px-4 sm:px-5">
-                    <div className="h-5 w-20 bg-slate-200 rounded-full" />
-                  </td>
-                  <td className="py-4 px-4 sm:px-5">
-                    <div className="h-4 w-24 bg-slate-200 rounded" />
-                  </td>
-                  <td className="py-4 px-4 sm:px-5">
-                    <div className="h-4 w-20 bg-slate-200 rounded" />
-                  </td>
-                  <td className="py-4 px-4 sm:px-5">
-                    <div className="h-4 w-24 bg-slate-200 rounded" />
-                  </td>
-                  <td className="py-4 px-4 sm:px-5">
-                    <div className="h-4 w-20 bg-slate-200 rounded" />
-                  </td>
+                  {Array.from({ length: 13 }).map((__, colIdx) => (
+                    <td key={colIdx} className="py-4 px-4 sm:px-5">
+                      <div className="h-4 w-20 bg-slate-200 rounded" />
+                    </td>
+                  ))}
                   <td className="py-4 px-4 sm:px-5 text-right">
                     <div className="inline-flex gap-2">
                       <div className="w-7 h-7 bg-slate-200 rounded-lg" />
@@ -357,7 +273,7 @@ export function RecordTable({
             ) : records.length === 0 ? (
               // Empty state
               <tr>
-                <td colSpan={9} className="py-16 px-4 text-center">
+                <td colSpan={14} className="py-16 px-4 text-center">
                   <div className="max-w-md mx-auto flex flex-col items-center">
                     <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
                       <Inbox className="w-6 h-6" />
@@ -467,6 +383,26 @@ export function RecordTable({
                     </span>
                   </td>
 
+                  {/* ประเภทหลัก */}
+                  <td className="py-3.5 px-4 sm:px-5 text-slate-700 text-xs sm:text-sm whitespace-nowrap">
+                    {record.mainCategory ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium border border-slate-200/80">
+                        {record.mainCategory}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 font-normal">—</span>
+                    )}
+                  </td>
+
+                  {/* ประเภทย่อย */}
+                  <td className="py-3.5 px-4 sm:px-5 text-slate-700 text-xs sm:text-sm whitespace-nowrap">
+                    {record.subCategory ? (
+                      <span>{record.subCategory}</span>
+                    ) : (
+                      <span className="text-slate-400 font-normal">—</span>
+                    )}
+                  </td>
+
                   {/* ตำแหน่งที่ตั้ง */}
                   <td className="py-3.5 px-4 sm:px-5 text-slate-700 text-xs sm:text-sm">
                     <div className="flex items-center gap-1.5 text-slate-600">
@@ -478,6 +414,33 @@ export function RecordTable({
                   {/* สถานะ */}
                   <td className="py-3.5 px-4 sm:px-5">
                     {renderStatusBadge(record.status)}
+                  </td>
+
+                  {/* วันที่ได้มา */}
+                  <td className="py-3.5 px-4 sm:px-5 text-slate-600 tabular-nums text-xs sm:text-sm whitespace-nowrap">
+                    {record.acquisitionDate ? (
+                      formatDate(record.acquisitionDate)
+                    ) : (
+                      <span className="text-slate-400 font-normal">—</span>
+                    )}
+                  </td>
+
+                  {/* ราคา/หน่วย */}
+                  <td className="py-3.5 px-4 sm:px-5 text-slate-700 tabular-nums text-xs sm:text-sm whitespace-nowrap text-right font-medium">
+                    {formatCurrency(record.unitPrice) ? (
+                      <span>{formatCurrency(record.unitPrice)} บาท</span>
+                    ) : (
+                      <span className="text-slate-400 font-normal">—</span>
+                    )}
+                  </td>
+
+                  {/* งบที่ซื้อ */}
+                  <td className="py-3.5 px-4 sm:px-5 text-slate-600 text-xs sm:text-sm whitespace-nowrap">
+                    {record.budgetSource ? (
+                      <span>{record.budgetSource}</span>
+                    ) : (
+                      <span className="text-slate-400 font-normal">—</span>
+                    )}
                   </td>
 
                   {/* ผู้รับผิดชอบ */}

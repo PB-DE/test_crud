@@ -9,6 +9,11 @@ export type SortField =
   | 'responsiblePerson'
   | 'recordedBy'
   | 'notes'
+  | 'mainCategory'
+  | 'subCategory'
+  | 'acquisitionDate'
+  | 'unitPrice'
+  | 'budgetSource'
   | 'createdAt'
   | 'updatedAt';
 
@@ -43,6 +48,9 @@ export function filterRecords(
     const responsibleMatch = (record.responsiblePerson || '').toLowerCase().includes(normalizedQuery);
     const recordedByMatch = (record.recordedBy || '').toLowerCase().includes(normalizedQuery);
     const notesMatch = (record.notes || '').toLowerCase().includes(normalizedQuery);
+    const mainCategoryMatch = (record.mainCategory || '').toLowerCase().includes(normalizedQuery);
+    const subCategoryMatch = (record.subCategory || '').toLowerCase().includes(normalizedQuery);
+    const budgetSourceMatch = (record.budgetSource || '').toLowerCase().includes(normalizedQuery);
 
     return (
       assetCodeMatch ||
@@ -50,7 +58,10 @@ export function filterRecords(
       locationMatch ||
       responsibleMatch ||
       recordedByMatch ||
-      notesMatch
+      notesMatch ||
+      mainCategoryMatch ||
+      subCategoryMatch ||
+      budgetSourceMatch
     );
   });
 }
@@ -70,8 +81,15 @@ export function sortRecords(
     const valA = a[field] ?? '';
     const valB = b[field] ?? '';
 
+    // Handle numeric comparisons for unitPrice
+    if (field === 'unitPrice') {
+      const numA = typeof a.unitPrice === 'number' ? a.unitPrice : -1;
+      const numB = typeof b.unitPrice === 'number' ? b.unitPrice : -1;
+      return (numA - numB) * multiplier;
+    }
+
     // Handle date comparisons
-    if (field === 'createdAt' || field === 'updatedAt') {
+    if (field === 'createdAt' || field === 'updatedAt' || field === 'acquisitionDate') {
       const timeA = new Date(valA).getTime() || 0;
       const timeB = new Date(valB).getTime() || 0;
       return (timeA - timeB) * multiplier;
